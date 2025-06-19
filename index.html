@@ -2,86 +2,74 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Clifford – Music Events (Admin Mode)</title>
+  <title>Clifford – Music Events</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
-      margin: 20px;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f4e3d7;
+      color: #333;
+      margin: 0;
+      padding: 0;
     }
+
     h1 {
       text-align: center;
-      color: #2c3e50;
+      padding: 20px;
+      color: #5e3b1f;
     }
-    form, #filterContainer, #adminToggleContainer {
-      background: #fff;
-      padding: 15px;
-      border-radius: 8px;
-      max-width: 600px;
-      margin: 0 auto 20px auto;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+
+    .top-buttons {
+      text-align: center;
+      margin-bottom: 20px;
     }
-    label {
-      display: block;
-      margin-top: 10px;
-    }
-    input, select, textarea, button {
-      width: 100%;
-      padding: 8px;
-      margin-top: 5px;
-      font-size: 14px;
-    }
-    button {
-      background: #27ae60;
+
+    .top-buttons button {
+      background-color: #8b4e1e;
       color: white;
+      padding: 15px 25px;
+      font-size: 18px;
       border: none;
-      border-radius: 4px;
+      border-radius: 5px;
+      margin: 10px;
       cursor: pointer;
     }
-    button:hover {
-      background: #219150;
+
+    .top-buttons button:hover {
+      background-color: #6c3b17;
     }
+
+    #styleFilter {
+      display: block;
+      margin: 0 auto 20px auto;
+      padding: 10px;
+      font-size: 16px;
+      background-color: #fff6ee;
+      border: 1px solid #d3b7a3;
+      border-radius: 4px;
+      width: 300px;
+    }
+
     #map {
-      height: 400px;
+      height: 200px;
       max-width: 900px;
       margin: 0 auto 20px auto;
       border-radius: 8px;
     }
+
     #eventList {
       max-width: 600px;
-      margin: 20px auto;
+      margin: 0 auto 40px auto;
     }
+
     .event {
-      background: #fff;
-      padding: 10px 10px 10px 15px;
+      background: #fff6ee;
+      padding: 15px;
       margin-bottom: 10px;
-      border-left: 5px solid #2980b9;
+      border-left: 5px solid #8b4e1e;
       border-radius: 4px;
-      position: relative;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    .delete-btn {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      width: 50px;
-      height: 22px;
-      font-size: 10px;
-      background: #c0392b;
-      color: #fff;
-      border: none;
-      border-radius: 3px;
-      cursor: pointer;
-      display: none;
-      z-index: 1;
-    }
-    .delete-btn:hover {
-      background: #a83228;
-    }
-    #adminToggleContainer {
-      text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     }
   </style>
 </head>
@@ -89,31 +77,21 @@
 
   <h1>🎷 Clifford – Music Events</h1>
 
-  <form id="eventForm">
-    <label>Create Event Title: <input type="text" id="title" required /></label>
-    <label>Date & Time: <input type="datetime-local" id="datetime" required /></label>
-    <label>Music Style:
-      <select id="style" required>
-        <option value="">-- Choose --</option>
-        <option>Jazz</option><option>Rock</option><option>Classical</option>
-        <option>Electronic</option><option>Jam Session</option>
-        <option>Pop</option><option>Hip-hop</option><option>Folk</option>
-        <option>Metal</option><option>Blues</option><option>Other</option>
-      </select>
-    </label>
-    <label>Location: <input type="text" id="location" placeholder="e.g. Vienna, Austria" required /></label>
-    <label>Description: <textarea id="description"></textarea></label>
-    <button type="submit">Add Event</button>
-  </form>
-
-  <div id="filterContainer">
-    <label for="styleFilter">Filter by Music Style:</label>
+  <div class="top-buttons">
+    <label for="styleFilter" style="font-weight: bold;">Find event by style</label>
     <select id="styleFilter">
-      <option value="">All Styles</option>
-      <option>Jazz</option><option>Rock</option><option>Classical</option>
-      <option>Electronic</option><option>Jam Session</option>
-      <option>Pop</option><option>Hip-hop</option><option>Folk</option>
-      <option>Metal</option><option>Blues</option><option>Other</option>
+      <option value="All">All Styles</option>
+      <option>Jazz</option>
+      <option>Rock</option>
+      <option>Classical</option>
+      <option>Electronic</option>
+      <option>Jam Session</option>
+      <option>Pop</option>
+      <option>Hip-hop</option>
+      <option>Folk</option>
+      <option>Metal</option>
+      <option>Blues</option>
+      <option>Other</option>
     </select>
   </div>
 
@@ -121,160 +99,52 @@
 
   <div id="eventList"></div>
 
-  <div id="adminToggleContainer">
-    <label><input type="checkbox" id="adminToggle" /> Admin Mode (password required)</label>
-  </div>
-
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import {
-      getFirestore, collection, addDoc, getDocs,
-      deleteDoc, doc, orderBy, query
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyBylr8Qgxzw263rInUmln4AYMpibm1t43o",
-      authDomain: "clifford-146ae.firebaseapp.com",
-      projectId: "clifford-146ae",
-      storageBucket: "clifford-146ae.appspot.com",
-      messagingSenderId: "655375890963",
-      appId: "1:655375890963:web:0153ed600a917c222c9de6"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    const form = document.getElementById("eventForm");
-    const styleFilter = document.getElementById("styleFilter");
-    const eventList = document.getElementById("eventList");
-    const adminToggle = document.getElementById("adminToggle");
-
-    const PASSWORD = "2412";
-    let isAdmin = false;
-    let eventsData = [];
-    let markers = [];
-
-    const map = L.map("map").setView([48.2082, 16.3738], 5);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors"
+  <script>
+    const map = L.map('map').setView([47.5, 9.75], 8);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    async function geocode(loc) {
-      const resp = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(loc)}`
-      );
-      const data = await resp.json();
-      if (!data.length) throw new Error("Location not found.");
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    }
+    const events = [
+      { title: "Jazz Night", style: "Jazz", location: "Vienna", lat: 48.2, lng: 16.37 },
+      { title: "Rockfest", style: "Rock", location: "Graz", lat: 47.07, lng: 15.43 },
+      { title: "Open Mic Jam", style: "Jam Session", location: "Linz", lat: 48.3, lng: 14.29 }
+    ];
 
-    function showDeleteButtons(show) {
-      document.querySelectorAll(".delete-btn").forEach(btn => {
-        btn.style.display = show ? "inline-block" : "none";
-      });
-    }
+    const eventList = document.getElementById('eventList');
+    const styleFilter = document.getElementById('styleFilter');
 
-    async function loadEvents() {
-      markers.forEach(m => map.removeLayer(m));
-      markers = [];
+    function displayEvents(filterStyle) {
       eventList.innerHTML = "";
-
-      const snap = await getDocs(query(collection(db, "events"), orderBy("datetime", "asc")));
-      eventsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      displayEvents();
-    }
-
-    function displayEvents() {
-      eventList.innerHTML = "";
-      markers.forEach(m => map.removeLayer(m));
-      markers = [];
-
-      const filtered = styleFilter.value
-        ? eventsData.filter(e => e.style === styleFilter.value)
-        : eventsData;
-
-      if (!filtered.length) {
-        eventList.innerHTML = "<p>No events found.</p>";
-        return;
-      }
-
-      filtered.forEach(e => {
-        const div = document.createElement("div");
-        div.className = "event";
-        div.innerHTML = `
-          <button class="delete-btn" data-id="${e.id}">Del</button>
-          <strong>${e.title}</strong><br/>
-          ${new Date(e.datetime).toLocaleString()}<br/>
-          ${e.style}<br/>
-          ${e.location}<br/>
-          ${e.description ? `<p>${e.description}</p>` : ""}
-        `;
-        eventList.appendChild(div);
-
-        const m = L.marker([e.lat, e.lng])
-          .addTo(map)
-          .bindPopup(`<strong>${e.title}</strong><br/>${e.location}`);
-        markers.push(m);
-      });
-
-      showDeleteButtons(isAdmin);
-
-      if (isAdmin) {
-        document.querySelectorAll(".delete-btn").forEach(btn => {
-          btn.onclick = async () => {
-            if (confirm("Delete this event?")) {
-              await deleteDoc(doc(db, "events", btn.dataset.id));
-              loadEvents();
-            }
-          };
-        });
-      }
-    }
-
-    adminToggle.onchange = () => {
-      if (adminToggle.checked) {
-        const p = prompt("Enter admin password:");
-        if (p === PASSWORD) {
-          isAdmin = true;
-          alert("Admin mode ON");
-        } else {
-          alert("Wrong password");
-          adminToggle.checked = false;
-          isAdmin = false;
+      events.forEach(evt => {
+        if (filterStyle === "All" || evt.style === filterStyle) {
+          const div = document.createElement("div");
+          div.className = "event";
+          div.innerHTML = `
+            <strong>${evt.title}</strong><br/>
+            <strong>Style:</strong> ${evt.style}<br/>
+            <strong>Location:</strong> ${evt.location}
+          `;
+          eventList.appendChild(div);
         }
-      } else {
-        isAdmin = false;
-      }
-      showDeleteButtons(isAdmin);
-    };
+      });
+    }
 
-    form.onsubmit = async e => {
-      e.preventDefault();
-      const title = form.title.value.trim();
-      const dt = form.datetime.value;
-      const style = form.style.value;
-      const loc = form.location.value.trim();
-      const desc = form.description.value.trim();
-      if (!title || !dt || !style || !loc) {
-        return alert("Please fill in all required fields.");
-      }
+    // Add markers to map
+    events.forEach(evt => {
+      L.marker([evt.lat, evt.lng]).addTo(map)
+        .bindPopup(`<strong>${evt.title}</strong><br/>${evt.style}<br/>${evt.location}`);
+    });
 
-      try {
-        const coords = await geocode(loc);
-        await addDoc(collection(db, "events"), {
-          title, datetime: dt, style, location: loc,
-          description: desc, lat: coords.lat, lng: coords.lng
-        });
-        form.reset();
-        loadEvents();
-      } catch (err) {
-        alert("Error: " + err.message);
-      }
-    };
+    // Initial display
+    displayEvents("All");
 
-    styleFilter.onchange = displayEvents;
-    loadEvents();
+    // Filter functionality
+    styleFilter.addEventListener("change", () => {
+      displayEvents(styleFilter.value);
+    });
   </script>
+
 </body>
 </html>
