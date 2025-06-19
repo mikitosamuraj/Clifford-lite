@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Clifford – Music Events (Filter and Management)</title>
+<title>Clifford – Music Events (Address Geocoding)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -16,7 +16,7 @@
     text-align: center;
     color: #2c3e50;
   }
-  form, #filterSection {
+  form {
     background: white;
     padding: 15px;
     border-radius: 8px;
@@ -47,9 +47,13 @@
   button:hover {
     background: #219150;
   }
+  #filterContainer {
+    max-width: 500px;
+    margin: 0 auto 10px auto;
+  }
   #eventList {
     max-width: 500px;
-    margin: 0 auto 30px auto;
+    margin: 20px auto 0 auto;
   }
   .event {
     background: white;
@@ -73,25 +77,25 @@
   #map {
     height: 400px;
     max-width: 900px;
-    margin: 0 auto 30px auto;
+    margin: 20px auto;
     border-radius: 8px;
   }
 </style>
 </head>
 <body>
 
-<h1>🎷 Clifford – Music Events (Filter and Management)</h1>
+<h1>🎷 Clifford – Music Events </h1>
 
 <form id="eventForm">
   <label>Event Title:
     <input type="text" id="title" required />
   </label>
-  <label>Date and Time:
+  <label>Date & Time:
     <input type="datetime-local" id="datetime" required />
   </label>
   <label>Music Style:
     <select id="style" required>
-      <option value="">-- Select --</option>
+      <option value="">-- Choose --</option>
       <option>Jazz</option><option>Rock</option><option>Classical</option>
       <option>Electronic</option><option>Jam Session</option>
       <option>Pop</option><option>Hip-hop</option><option>Folk</option>
@@ -99,7 +103,7 @@
     </select>
   </label>
   <label>Location (city, address or place):
-    <input type="text" id="location" placeholder="e.g. Bratislava, Slovakia" required />
+    <input type="text" id="location" placeholder="e.g. Vienna, Austria" required />
   </label>
   <label>Description (optional):
     <textarea id="description"></textarea>
@@ -107,17 +111,15 @@
   <button type="submit">Add Event</button>
 </form>
 
-<!-- Filter section -->
-<div id="filterSection">
-  <label>Filter by music style:
-    <select id="filterStyle">
-      <option value="">All Styles</option>
-      <option>Jazz</option><option>Rock</option><option>Classical</option>
-      <option>Electronic</option><option>Jam Session</option>
-      <option>Pop</option><option>Hip-hop</option><option>Folk</option>
-      <option>Metal</option><option>Blues</option><option>Other</option>
-    </select>
-  </label>
+<div id="filterContainer">
+  <label for="filterStyle">Filter by Music Style:</label>
+  <select id="filterStyle">
+    <option value="">All Styles</option>
+    <option>Jazz</option><option>Rock</option><option>Classical</option>
+    <option>Electronic</option><option>Jam Session</option>
+    <option>Pop</option><option>Hip-hop</option><option>Folk</option>
+    <option>Metal</option><option>Blues</option><option>Other</option>
+  </select>
 </div>
 
 <div id="map"></div>
@@ -135,7 +137,6 @@
     deleteDoc, doc, orderBy, query
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-  // Firebase config
   const firebaseConfig = {
     apiKey: "AIzaSyBylr8Qgxzw263rInUmln4AYMpibm1t43o",
     authDomain: "clifford-146ae.firebaseapp.com",
@@ -148,22 +149,23 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
+  // Your admin email
+  const adminEmail = "michael.arvay2@gmail.com";
+
   const form = document.getElementById("eventForm");
   const eventList = document.getElementById("eventList");
   const filterStyle = document.getElementById("filterStyle");
 
-  // Admin email - only this email can delete events
-  const adminEmail = "michael.arvay2@gmail.com";
-
   // Initialize map
-  const map = L.map("map").setView([48.2082, 16.3738], 5); // center Europe
+  const map = L.map("map").setView([48.2082, 16.3738], 5);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap contributors"
   }).addTo(map);
 
   let markers = [];
+  let eventsData = [];
 
-  // Geocode function using Nominatim OpenStreetMap API
+  // Simple geocode with Nominatim
   async function geocode(location) {
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}`;
     const resp = await fetch(url);
@@ -175,7 +177,6 @@
     }
   }
 
-  // Add new event
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
@@ -186,7 +187,7 @@
     const description = form.description.value.trim();
 
     if (!title || !datetime || !style || !locationText) {
-      alert("Please fill in all required fields.");
+      alert("Please fill all required fields.");
       return;
     }
 
@@ -202,7 +203,7 @@
         lat: coords.lat,
         lng: coords.lng,
         createdAt: new Date().toISOString(),
-        creatorEmail: adminEmail // set to your email as creator
+        creatorEmail: adminEmail  // We treat all events as created by admin (since no login)
       };
 
       await addDoc(collection(db, "events"), eventObj);
@@ -214,7 +215,6 @@
     }
   });
 
-  // Load and display events with filter
   async function loadEvents() {
     // Remove existing markers
     markers.forEach(m => map.removeLayer(m));
@@ -226,60 +226,81 @@
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      eventList.innerHTML = "<p>No events found.</p>";
+      eventList.innerHTML = "<p>No events yet.</p>";
       return;
     }
 
-    const selectedStyle = filterStyle.value;
-
+    eventsData = [];
     snapshot.forEach(docSnap => {
       const d = docSnap.data();
+      d.id = docSnap.id;
+      eventsData.push(d);
+    });
 
-      // Filter by style if selected
-      if (selectedStyle && d.style !== selectedStyle) {
-        return; // skip events not matching filter
-      }
+    displayEvents();
+  }
+
+  function displayEvents() {
+    eventList.innerHTML = "";
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+
+    const filteredEvents = eventsData.filter(ev => {
+      if (!filterStyle.value) return true;
+      return ev.style === filterStyle.value;
+    });
+
+    if (filteredEvents.length === 0) {
+      eventList.innerHTML = "<p>No events match the selected filter.</p>";
+      return;
+    }
+
+    filteredEvents.forEach(ev => {
+      // Add marker
+      const marker = L.marker([ev.lat, ev.lng]).addTo(map);
+      marker.bindPopup(`<b>${ev.title}</b><br>${new Date(ev.datetime).toLocaleString()}<br>${ev.style}<br>${ev.location}<br>${ev.description || ""}`);
+      markers.push(marker);
 
       // Create event card
       const div = document.createElement("div");
       div.className = "event";
-      div.innerHTML = `
-        <strong>${d.title}</strong><br />
-        Date: ${new Date(d.datetime).toLocaleString()}<br />
-        Style: ${d.style}<br />
-        Location: ${d.location}<br />
-        ${d.description ? `<em>${d.description}</em><br />` : ""}
-      `;
 
-      // If admin, add delete button
-      if (adminEmail === "michael.arvay2@gmail.com") {
-        const delBtn = document.createElement("button");
-        delBtn.className = "delete-btn";
-        delBtn.textContent = "Delete";
-        delBtn.onclick = async () => {
-          if (confirm(`Delete event "${d.title}"?`)) {
-            await deleteDoc(doc(db, "events", docSnap.id));
-            loadEvents();
-          }
-        };
-        div.appendChild(delBtn);
+      let html = `<strong>${ev.title}</strong><br>`;
+      html += `${new Date(ev.datetime).toLocaleString()}<br>`;
+      html += `<em>${ev.style}</em><br>`;
+      html += `${ev.location}<br>`;
+      if (ev.description) html += `<p>${ev.description}</p>`;
+
+      // Show Delete button only if current user is admin (no login, so only your email)
+      if (ev.creatorEmail === adminEmail) {
+        html += `<button class="delete-btn" data-id="${ev.id}">Delete</button>`;
       }
 
+      div.innerHTML = html;
       eventList.appendChild(div);
+    });
 
-      // Add marker on map
-      const marker = L.marker([d.lat, d.lng])
-        .addTo(map)
-        .bindPopup(`<strong>${d.title}</strong><br>${d.location}<br>${new Date(d.datetime).toLocaleString()}`);
-      markers.push(marker);
+    // Add delete button listeners
+    document.querySelectorAll(".delete-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const id = e.target.getAttribute("data-id");
+        if (confirm("Are you sure you want to delete this event?")) {
+          try {
+            await deleteDoc(doc(db, "events", id));
+            loadEvents();
+          } catch (error) {
+            alert("Error deleting event: " + error.message);
+          }
+        }
+      });
     });
   }
 
-  filterStyle.addEventListener("change", loadEvents);
+  filterStyle.addEventListener("change", displayEvents);
 
   // Initial load
   loadEvents();
-</script>
 
+</script>
 </body>
 </html>
