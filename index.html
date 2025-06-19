@@ -2,44 +2,95 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Clifford – Music Events (Admin Mode with Password)</title>
+  <title>Clifford – Music Events (Admin Mode)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
-    h1 { text-align: center; color: #2c3e50; }
-    form, #filterContainer { background: white; padding: 15px; border-radius: 8px;
-      max-width: 500px; margin: 0 auto 20px auto;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    label { display: block; margin-top: 10px; }
-    input, select, textarea, button { width: 100%; padding: 8px; margin-top: 5px; }
-    button { background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; }
-    button:hover { background: #219150; }
-    #map { height: 400px; max-width: 900px; margin: 0 auto 20px auto; border-radius: 8px; }
-    #eventList { max-width: 500px; margin: 20px auto; }
-    .event { background: white; padding: 10px; margin-bottom: 10px;
-      border-left: 5px solid #2980b9; border-radius: 4px; position: relative; }
-    .delete-btn { position: absolute; right: 10px; top: 10px;
-      background: #c0392b; color: white; border: none;
-      padding: 5px 10px; border-radius: 4px;
-      cursor: pointer; display: none; }
-    #adminToggleContainer { background: white; padding: 15px; border-radius: 8px;
-      max-width: 500px; margin: 20px auto 0 auto;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-align: center; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    form, #filterContainer, #adminToggleContainer {
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      max-width: 600px;
+      margin: 0 auto 20px auto;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, select, textarea, button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+    button {
+      background: #27ae60;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #219150;
+    }
+    #map {
+      height: 400px;
+      max-width: 900px;
+      margin: 0 auto 20px auto;
+      border-radius: 8px;
+    }
+    #eventList {
+      max-width: 600px;
+      margin: 20px auto;
+    }
+    .event {
+      background: #fff;
+      padding: 10px 10px 10px 15px;
+      margin-bottom: 10px;
+      border-left: 5px solid #2980b9;
+      border-radius: 4px;
+      position: relative;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .delete-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #c0392b;
+      color: #fff;
+      border: none;
+      padding: 5px 10px;
+      font-size: 12px;
+      border-radius: 3px;
+      cursor: pointer;
+      display: none;
+    }
+    .delete-btn:hover {
+      background: #a83228;
+    }
+    #adminToggleContainer {
+      text-align: center;
+    }
   </style>
 </head>
 <body>
 
   <h1>🎷 Clifford – Music Events</h1>
 
-  <!-- Add Event Form -->
+  <!-- Form -->
   <form id="eventForm">
-    <label>Event Title:
-      <input type="text" id="title" required />
-    </label>
-    <label>Date & Time:
-      <input type="datetime-local" id="datetime" required />
-    </label>
+    <label>Event Title: <input type="text" id="title" required /></label>
+    <label>Date & Time: <input type="datetime-local" id="datetime" required /></label>
     <label>Music Style:
       <select id="style" required>
         <option value="">-- Choose --</option>
@@ -49,12 +100,8 @@
         <option>Metal</option><option>Blues</option><option>Other</option>
       </select>
     </label>
-    <label>Location (city, address or place):
-      <input type="text" id="location" placeholder="e.g. Vienna, Austria" required />
-    </label>
-    <label>Description (optional):
-      <textarea id="description"></textarea>
-    </label>
+    <label>Location: <input type="text" id="location" placeholder="e.g. Vienna, Austria" required /></label>
+    <label>Description: <textarea id="description"></textarea></label>
     <button type="submit">Add Event</button>
   </form>
 
@@ -76,9 +123,9 @@
   <!-- Event List -->
   <div id="eventList"></div>
 
-  <!-- Admin Mode Toggle -->
+  <!-- Admin Mode -->
   <div id="adminToggleContainer">
-    <label><input type="checkbox" id="adminToggle" /> Admin Mode (requires password)</label>
+    <label><input type="checkbox" id="adminToggle" /> Admin Mode (password required)</label>
   </div>
 
   <!-- Scripts -->
@@ -132,7 +179,7 @@
     }
 
     async function loadEvents() {
-      // Clear map markers
+      // Clear previous
       markers.forEach(m => map.removeLayer(m));
       markers = [];
       eventList.innerHTML = "";
@@ -152,7 +199,7 @@
         : eventsData;
 
       if (!filtered.length) {
-        eventList.innerHTML = "<p>No events.</p>";
+        eventList.innerHTML = "<p>No events found.</p>";
         return;
       }
 
@@ -160,12 +207,12 @@
         const div = document.createElement("div");
         div.className = "event";
         div.innerHTML = `
+          <button class="delete-btn" data-id="${e.id}">Delete</button>
           <strong>${e.title}</strong><br/>
           ${new Date(e.datetime).toLocaleString()}<br/>
           ${e.style}<br/>
           ${e.location}<br/>
           ${e.description ? `<p>${e.description}</p>` : ""}
-          <button class="delete-btn" data-id="${e.id}">Delete</button>
         `;
         eventList.appendChild(div);
 
@@ -214,7 +261,7 @@
       const loc = form.location.value.trim();
       const desc = form.description.value.trim();
       if (!title || !dt || !style || !loc) {
-        return alert("Please fill all required fields.");
+        return alert("Please fill in all required fields.");
       }
 
       try {
