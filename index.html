@@ -55,7 +55,7 @@
       display: none;
     }
     #map {
-      height: 400px;
+      height: 200px; /* Zmenšená výška mapy na polovicu */
       max-width: 900px;
       margin: 0 auto 20px auto;
       border-radius: 8px;
@@ -99,7 +99,7 @@
   <h1>🎷 Clifford – Music Events</h1>
   <button id="showFormBtn">Create Event</button>
 
-  <form id="eventForm">
+  <form id="eventForm" style="display: none;">
     <label>Event Title: <input type="text" id="title" required /></label>
     <label>Date & Time: <input type="datetime-local" id="datetime" required /></label>
     <label>Music Style:
@@ -172,7 +172,11 @@
     }).addTo(map);
 
     showFormBtn.onclick = () => {
-      form.style.display = form.style.display === "none" ? "block" : "none";
+      if (form.style.display === "none" || form.style.display === "") {
+        form.style.display = "block";
+      } else {
+        form.style.display = "none";
+      }
     };
 
     async function geocode(loc) {
@@ -282,6 +286,7 @@
           description: desc, lat: coords.lat, lng: coords.lng
         });
         form.reset();
+        form.style.display = "none";
         loadEvents();
       } catch (err) {
         alert("Error: " + err.message);
