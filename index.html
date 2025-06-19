@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Clifford – Music Events</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -50,82 +52,74 @@
       margin-bottom: 10px;
       border-left: 4px solid #2980b9;
       border-radius: 4px;
+      position: relative;
     }
-    .event span {
-      display: block;
-      color: #555;
-      font-size: 0.9em;
+    .delete-btn {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      background: #c0392b;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    #map {
+      height: 400px;
+      margin-top: 20px;
+      border-radius: 8px;
     }
   </style>
 </head>
 <body>
-  <!-- 
-    Clifford – Music Events
-    This HTML document contains a form to add music events with the following fields:
-      - Event title
-      - Date and time (future events only)
-      - Location
-      - Music style (expanded list including Jam session)
-      - Optional description
-
-    Upon submitting the form, the data is validated (date must not be in the past),
-    then saved to the Firestore database (Firebase).
-
-    Only upcoming events are displayed on the page, sorted by date and time.
-
-    Technologies used:
-      - HTML + CSS for layout and styling
-      - JavaScript module with Firebase SDK for Firestore communication
-      - Firebase Firestore to store and fetch events
-
-    This code currently does not support user login or event editing by users.
-  -->
-
-  <h1>Clifford – Music Events</h1>
+  <h1>🎷 Clifford – Music Events</h1>
 
   <form id="eventForm">
-    <label>Event Title:
-      <input type="text" id="title" required />
+    <label>Title:
+      <input type="text" id="title" required>
     </label>
-    <label>Date and Time:
-      <input type="datetime-local" id="datetime" required />
+    <label>Date & Time:
+      <input type="datetime-local" id="datetime" required>
     </label>
-    <label>Location:
-      <input type="text" id="location" required />
+    <label>Location Name:
+      <input type="text" id="location" required>
     </label>
     <label>Music Style:
       <select id="style" required>
-        <option value="">-- Select style --</option>
-        <option value="Jazz">Jazz</option>
-        <option value="Rock">Rock</option>
-        <option value="Classical">Classical</option>
-        <option value="Electronic">Electronic</option>
-        <option value="Blues">Blues</option>
-        <option value="Folk">Folk</option>
-        <option value="Hip-Hop">Hip-Hop</option>
-        <option value="Pop">Pop</option>
-        <option value="Reggae">Reggae</option>
-        <option value="Metal">Metal</option>
-        <option value="R&B">R&B</option>
-        <option value="Country">Country</option>
-        <option value="Latino">Latino</option>
-        <option value="World">World</option>
-        <option value="Jam session">Jam session</option>
-        <option value="Other">Other</option>
+        <option value="">-- Choose --</option>
+        <option>Jazz</option>
+        <option>Rock</option>
+        <option>Classical</option>
+        <option>Electronic</option>
+        <option>Jam Session</option>
+        <option>Pop</option>
+        <option>Hip-hop</option>
+        <option>Folk</option>
+        <option>Metal</option>
+        <option>Blues</option>
+        <option>Other</option>
       </select>
     </label>
     <label>Description (optional):
       <textarea id="description"></textarea>
     </label>
+    <label>Click on the map to select location</label>
+    <div id="map"></div>
+    <input type="hidden" id="lat">
+    <input type="hidden" id="lng">
     <button type="submit">Add Event</button>
   </form>
 
   <div id="eventList"></div>
 
-  <!-- Firebase -->
+  <!-- Firebase & Firestore -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import {
+      getFirestore, collection, addDoc, getDocs,
+      deleteDoc, doc, query, orderBy, where
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBylr8Qgxzw263rInUmln4AYMpibm1t43o",
@@ -133,8 +127,7 @@
       projectId: "clifford-146ae",
       storageBucket: "clifford-146ae.appspot.com",
       messagingSenderId: "655375890963",
-      appId: "1:655375890963:web:0153ed600a917c222c9de6",
-      measurementId: "G-LH3WS88L5W"
+      appId: "1:655375890963:web:0153ed600a917c222c9de6"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -143,27 +136,48 @@
     const form = document.getElementById('eventForm');
     const eventList = document.getElementById('eventList');
 
+    // Leaflet Map
+    let latInput = document.getElementById('lat');
+    let lngInput = document.getElementById('lng');
+    let map = L.map('map').setView([48.2, 16.37], 8); // default Vienna
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marker;
+    map.on('click', function(e) {
+      const { lat, lng } = e.latlng;
+      latInput.value = lat;
+      lngInput.value = lng;
+      if (marker) {
+        marker.setLatLng(e.latlng);
+      } else {
+        marker = L.marker(e.latlng).addTo(map);
+      }
+    });
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const now = new Date();
-      const datetimeInput = new Date(document.getElementById('datetime').value);
 
-      if (datetimeInput < now) {
-        alert("You can't add an event in the past.");
+      if (!latInput.value || !lngInput.value) {
+        alert("Please select a location on the map.");
         return;
       }
 
       const newEvent = {
         title: document.getElementById('title').value,
-        datetime: datetimeInput.toISOString(),
+        datetime: new Date(document.getElementById('datetime').value).toISOString(),
         location: document.getElementById('location').value,
         style: document.getElementById('style').value,
         description: document.getElementById('description').value,
+        lat: parseFloat(latInput.value),
+        lng: parseFloat(lngInput.value),
         createdAt: new Date().toISOString()
       };
 
       await addDoc(collection(db, "events"), newEvent);
       form.reset();
+      if (marker) map.removeLayer(marker);
       loadEvents();
     });
 
@@ -171,24 +185,44 @@
       eventList.innerHTML = "";
       const nowISO = new Date().toISOString();
       const q = query(collection(db, "events"), where("datetime", ">=", nowISO), orderBy("datetime"));
-      const querySnapshot = await getDocs(q);
+      const snapshot = await getDocs(q);
 
-      querySnapshot.forEach(doc => {
-        const data = doc.data();
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
         const div = document.createElement('div');
         div.className = 'event';
         div.innerHTML = `
-          <strong>${data.title}</strong>
-          <span>${new Date(data.datetime).toLocaleString()}</span>
-          <span>${data.location}</span>
-          <span>${data.style}</span>
-          ${data.description ? `<span>${data.description}</span>` : ''}
+          <strong>${data.title}</strong><br>
+          📅 ${new Date(data.datetime).toLocaleString()}<br>
+          📍 ${data.location}<br>
+          🎵 ${data.style}<br>
+          ${data.description ? `<p>${data.description}</p>` : ''}
+          <button class="delete-btn" data-id="${docSnap.id}">Delete</button>
         `;
         eventList.appendChild(div);
+
+        // Map marker
+        if (data.lat && data.lng) {
+          const pin = L.marker([data.lat, data.lng]).addTo(map);
+          pin.bindPopup(`<b>${data.title}</b><br>${data.location}`).openPopup();
+        }
+      });
+
+      document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          if (confirm("Are you sure you want to delete this event?")) {
+            await deleteDoc(doc(db, "events", id));
+            loadEvents();
+          }
+        });
       });
     }
 
     loadEvents();
   </script>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 </body>
 </html>
