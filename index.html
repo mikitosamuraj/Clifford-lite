@@ -73,52 +73,44 @@
   </style>
 </head>
 <body>
-  <h1>🎷 Clifford – Music Events</h1>
+
+  <h1>🎷 Clifford – Music Events by City</h1>
 
   <form id="eventForm">
-    <label>Title:
+    <label>Your City:
+      <input type="text" id="cityFilter" placeholder="e.g. Vienna" required>
+    </label>
+    <label>Event Title:
       <input type="text" id="title" required>
     </label>
     <label>Date & Time:
       <input type="datetime-local" id="datetime" required>
     </label>
-    <label>Location Name:
-      <input type="text" id="location" required>
-    </label>
     <label>Music Style:
       <select id="style" required>
         <option value="">-- Choose --</option>
-        <option>Jazz</option>
-        <option>Rock</option>
-        <option>Classical</option>
-        <option>Electronic</option>
-        <option>Jam Session</option>
-        <option>Pop</option>
-        <option>Hip-hop</option>
-        <option>Folk</option>
-        <option>Metal</option>
-        <option>Blues</option>
-        <option>Other</option>
+        <option>Jazz</option><option>Rock</option><option>Classical</option>
+        <option>Electronic</option><option>Jam Session</option>
+        <option>Pop</option><option>Hip-hop</option><option>Folk</option>
+        <option>Metal</option><option>Blues</option><option>Other</option>
       </select>
     </label>
     <label>Description (optional):
       <textarea id="description"></textarea>
     </label>
-    <label>Click on the map to select location</label>
-    <div id="map"></div>
-    <input type="hidden" id="lat">
-    <input type="hidden" id="lng">
     <button type="submit">Add Event</button>
   </form>
 
   <div id="eventList"></div>
+  <div id="map"></div>
 
-  <!-- Firebase & Firestore -->
+  <!-- Leaflet & Firebase -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
       getFirestore, collection, addDoc, getDocs,
-      deleteDoc, doc, query, orderBy, where
+      deleteDoc, doc, query, where, orderBy
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -129,100 +121,86 @@
       messagingSenderId: "655375890963",
       appId: "1:655375890963:web:0153ed600a917c222c9de6"
     };
-
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
     const form = document.getElementById('eventForm');
     const eventList = document.getElementById('eventList');
+    const cityFilter = document.getElementById('cityFilter');
 
-    // Leaflet Map
-    let latInput = document.getElementById('lat');
-    let lngInput = document.getElementById('lng');
-    let map = L.map('map').setView([48.2, 16.37], 8); // default Vienna
+    let map = L.map('map').fitWorld();
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
+    map.locate({ setView: true, maxZoom: 12 });
 
-    let marker;
-    map.on('click', function(e) {
-      const { lat, lng } = e.latlng;
-      latInput.value = lat;
-      lngInput.value = lng;
-      if (marker) {
-        marker.setLatLng(e.latlng);
-      } else {
-        marker = L.marker(e.latlng).addTo(map);
-      }
+    let userLat = null, userLng = null;
+    map.on('locationfound', e => {
+      userLat = e.latlng.lat;
+      userLng = e.latlng.lng;
+      L.marker(e.latlng).addTo(map)
+        .bindPopup("You are here").openPopup();
+      loadEvents();
     });
 
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', async e => {
       e.preventDefault();
-
-      if (!latInput.value || !lngInput.value) {
-        alert("Please select a location on the map.");
-        return;
-      }
-
+      const city = cityFilter.value.trim();
+      if (!userLat || !userLng) return alert("Waiting for your location…");
       const newEvent = {
+        city,
         title: document.getElementById('title').value,
         datetime: new Date(document.getElementById('datetime').value).toISOString(),
-        location: document.getElementById('location').value,
         style: document.getElementById('style').value,
         description: document.getElementById('description').value,
-        lat: parseFloat(latInput.value),
-        lng: parseFloat(lngInput.value),
+        lat: userLat,
+        lng: userLng,
         createdAt: new Date().toISOString()
       };
-
       await addDoc(collection(db, "events"), newEvent);
       form.reset();
-      if (marker) map.removeLayer(marker);
       loadEvents();
     });
 
     async function loadEvents() {
       eventList.innerHTML = "";
-      const nowISO = new Date().toISOString();
-      const q = query(collection(db, "events"), where("datetime", ">=", nowISO), orderBy("datetime"));
+      if (!cityFilter.value.trim()) return;
+      const q = query(
+        collection(db, "events"),
+        where("city", "==", cityFilter.value.trim()),
+        orderBy("datetime", "asc")
+      );
       const snapshot = await getDocs(q);
+      map.eachLayer(layer => layer instanceof L.Marker && !layer._popup._content.includes("You are here") && map.removeLayer(layer));
 
       snapshot.forEach(docSnap => {
-        const data = docSnap.data();
+        const d = docSnap.data();
         const div = document.createElement('div');
         div.className = 'event';
         div.innerHTML = `
-          <strong>${data.title}</strong><br>
-          📅 ${new Date(data.datetime).toLocaleString()}<br>
-          📍 ${data.location}<br>
-          🎵 ${data.style}<br>
-          ${data.description ? `<p>${data.description}</p>` : ''}
+          <strong>${d.title}</strong><br>
+          Date: ${new Date(d.datetime).toLocaleString()}<br>
+          ${d.style}<br>
+          ${d.description ? `<p>${d.description}</p>` : ''}
           <button class="delete-btn" data-id="${docSnap.id}">Delete</button>
         `;
         eventList.appendChild(div);
 
-        // Map marker
-        if (data.lat && data.lng) {
-          const pin = L.marker([data.lat, data.lng]).addTo(map);
-          pin.bindPopup(`<b>${data.title}</b><br>${data.location}`).openPopup();
-        }
-      });
+        const marker = L.marker([d.lat, d.lng]).addTo(map);
+        marker.bindPopup(`<b>${d.title}</b><br>${new Date(d.datetime).toLocaleString()}`);
 
-      document.querySelectorAll('.delete-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const id = btn.dataset.id;
-          if (confirm("Are you sure you want to delete this event?")) {
-            await deleteDoc(doc(db, "events", id));
+        div.querySelector('.delete-btn').addEventListener('click', async () => {
+          if (confirm("Delete this event?")) {
+            await deleteDoc(doc(db, "events", docSnap.id));
             loadEvents();
           }
         });
       });
     }
 
-    loadEvents();
+    cityFilter.addEventListener('change', () => {
+      if (userLat) loadEvents();
+    });
   </script>
-
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 </body>
 </html>
