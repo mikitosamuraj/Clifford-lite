@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="sk">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Clifford – Hudobné udalosti</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <title>Clifford – Music Events</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -59,43 +59,74 @@
   </style>
 </head>
 <body>
-  <h1>🎷 Clifford – Hudobné udalosti</h1>
+  <!-- 
+    Clifford – Music Events
+    This HTML document contains a form to add music events with the following fields:
+      - Event title
+      - Date and time (future events only)
+      - Location
+      - Music style (expanded list including Jam session)
+      - Optional description
+
+    Upon submitting the form, the data is validated (date must not be in the past),
+    then saved to the Firestore database (Firebase).
+
+    Only upcoming events are displayed on the page, sorted by date and time.
+
+    Technologies used:
+      - HTML + CSS for layout and styling
+      - JavaScript module with Firebase SDK for Firestore communication
+      - Firebase Firestore to store and fetch events
+
+    This code currently does not support user login or event editing by users.
+  -->
+
+  <h1>Clifford – Music Events</h1>
 
   <form id="eventForm">
-    <label>Názov udalosti:
-      <input type="text" id="title" required>
+    <label>Event Title:
+      <input type="text" id="title" required />
     </label>
-    <label>Dátum a čas:
-      <input type="datetime-local" id="datetime" required>
+    <label>Date and Time:
+      <input type="datetime-local" id="datetime" required />
     </label>
-    <label>Miesto:
-      <input type="text" id="location" required>
+    <label>Location:
+      <input type="text" id="location" required />
     </label>
-    <label>Hudobný štýl:
+    <label>Music Style:
       <select id="style" required>
-        <option value="">-- Vyber štýl --</option>
+        <option value="">-- Select style --</option>
         <option value="Jazz">Jazz</option>
         <option value="Rock">Rock</option>
-        <option value="Klasika">Klasika</option>
-        <option value="Elektronika">Elektronika</option>
-        <option value="Iné">Iné</option>
+        <option value="Classical">Classical</option>
+        <option value="Electronic">Electronic</option>
+        <option value="Blues">Blues</option>
+        <option value="Folk">Folk</option>
+        <option value="Hip-Hop">Hip-Hop</option>
+        <option value="Pop">Pop</option>
+        <option value="Reggae">Reggae</option>
+        <option value="Metal">Metal</option>
+        <option value="R&B">R&B</option>
+        <option value="Country">Country</option>
+        <option value="Latino">Latino</option>
+        <option value="World">World</option>
+        <option value="Jam session">Jam session</option>
+        <option value="Other">Other</option>
       </select>
     </label>
-    <label>Popis (nepovinné):
+    <label>Description (optional):
       <textarea id="description"></textarea>
     </label>
-    <button type="submit">Pridať udalosť</button>
+    <button type="submit">Add Event</button>
   </form>
 
   <div id="eventList"></div>
 
   <!-- Firebase -->
   <script type="module">
-    // Firebase importy
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, addDoc, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    // 🔐 Tvoj Firebase config (nahraď ak treba)
     const firebaseConfig = {
       apiKey: "AIzaSyBylr8Qgxzw263rInUmln4AYMpibm1t43o",
       authDomain: "clifford-146ae.firebaseapp.com",
@@ -118,7 +149,7 @@
       const datetimeInput = new Date(document.getElementById('datetime').value);
 
       if (datetimeInput < now) {
-        alert("Nemôžeš pridať udalosť v minulosti.");
+        alert("You can't add an event in the past.");
         return;
       }
 
@@ -141,17 +172,17 @@
       const nowISO = new Date().toISOString();
       const q = query(collection(db, "events"), where("datetime", ">=", nowISO), orderBy("datetime"));
       const querySnapshot = await getDocs(q);
-      
+
       querySnapshot.forEach(doc => {
         const data = doc.data();
         const div = document.createElement('div');
         div.className = 'event';
         div.innerHTML = `
           <strong>${data.title}</strong>
-          <span>📅 ${new Date(data.datetime).toLocaleString()}</span>
-          <span>📍 ${data.location}</span>
-          <span>🎵 ${data.style}</span>
-          ${data.description ? `<span>📝 ${data.description}</span>` : ''}
+          <span>${new Date(data.datetime).toLocaleString()}</span>
+          <span>${data.location}</span>
+          <span>${data.style}</span>
+          ${data.description ? `<span>${data.description}</span>` : ''}
         `;
         eventList.appendChild(div);
       });
