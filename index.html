@@ -2,250 +2,294 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Clifford Events</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+  <title>Clifford – Music Events</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body {
-      margin: 0;
       font-family: Arial, sans-serif;
       background-color: #121212;
-      color: #ffffff;
+      color: #fff;
+      margin: 20px;
     }
     h1 {
       text-align: center;
-      padding: 10px;
+      color: #f39c12;
     }
-    #map {
-      height: 400px;
-    }
-    .container {
-      padding: 20px;
-    }
-    .btn {
-      display: inline-block;
-      margin: 10px;
-      padding: 15px 30px;
-      font-size: 18px;
-      font-weight: bold;
-      color: #fff;
-      background-color: #1e88e5;
+    button {
+      padding: 10px 16px;
+      font-size: 16px;
+      margin-bottom: 10px;
       border: none;
       border-radius: 5px;
       cursor: pointer;
     }
-    .btn:hover {
-      background-color: #1565c0;
-    }
-    #createForm, #filterForm {
-      display: none;
-      margin-top: 20px;
-    }
-    label, input, select, textarea {
-      display: block;
-      width: 100%;
-      margin: 10px 0;
-      background: #222;
+    #showFormBtn {
+      background: #e74c3c;
       color: white;
-      border: 1px solid #444;
-      padding: 10px;
-      border-radius: 5px;
+      display: block;
+      margin: 0 auto 20px auto;
+      font-weight: bold;
     }
-    #eventsList {
-      margin-top: 30px;
+    form, #filterContainer, #adminToggleContainer {
+      background: #1e1e1e;
+      padding: 15px;
+      border-radius: 8px;
+      max-width: 600px;
+      margin: 0 auto 20px auto;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      background-color: #2c2c2c;
+      color: white;
+      border: 1px solid #555;
+    }
+    #eventForm {
+      display: none;
+    }
+    #map {
+      height: 400px;
+      max-width: 900px;
+      margin: 0 auto 20px auto;
+      border-radius: 8px;
+    }
+    #eventList {
+      max-width: 600px;
+      margin: 20px auto;
     }
     .event {
       background: #1e1e1e;
-      border: 1px solid #444;
-      padding: 15px;
-      margin: 10px 0;
-      border-radius: 8px;
+      padding: 10px 10px 10px 15px;
+      margin-bottom: 10px;
+      border-left: 5px solid #2980b9;
+      border-radius: 4px;
       position: relative;
     }
     .delete-btn {
       position: absolute;
-      top: 10px;
-      right: 10px;
-      background: #e53935;
-      color: white;
+      top: 8px;
+      right: 8px;
+      width: 50px;
+      height: 22px;
+      font-size: 10px;
+      background: #c0392b;
+      color: #fff;
       border: none;
-      border-radius: 5px;
-      padding: 5px 10px;
+      border-radius: 3px;
       cursor: pointer;
-      font-size: 12px;
       display: none;
     }
-    .admin-mode .delete-btn {
-      display: inline-block;
+    .delete-btn:hover {
+      background: #a83228;
     }
-    #adminToggle {
-      margin-top: 40px;
+    #adminToggleContainer {
       text-align: center;
-    }
-    #adminPassword {
-      padding: 10px;
-      width: 200px;
     }
   </style>
 </head>
 <body>
-  <h1>Clifford Music Events</h1>
-  <div id="map"></div>
 
-  <div class="container">
-    <button class="btn" onclick="toggleForm('createForm')">Create Event</button>
-    <button class="btn" onclick="toggleForm('filterForm')">Find Event</button>
+  <h1>🎷 Clifford – Music Events</h1>
+  <button id="showFormBtn">Create Event</button>
 
-    <form id="createForm" onsubmit="createEvent(event)">
-      <label>Title:</label>
-      <input type="text" id="title" required />
-      <label>Description:</label>
-      <textarea id="description" required></textarea>
-      <label>Date & Time:</label>
-      <input type="datetime-local" id="datetime" required />
-      <label>Style:</label>
-      <select id="style">
-        <option>Jazz</option>
-        <option>Rock</option>
-        <option>Funk</option>
-        <option>Classical</option>
-        <option>Electronic</option>
+  <form id="eventForm">
+    <label>Event Title: <input type="text" id="title" required /></label>
+    <label>Date & Time: <input type="datetime-local" id="datetime" required /></label>
+    <label>Music Style:
+      <select id="style" required>
+        <option value="">-- Choose --</option>
+        <option>Jazz</option><option>Rock</option><option>Classical</option>
+        <option>Electronic</option><option>Jam Session</option>
+        <option>Pop</option><option>Hip-hop</option><option>Folk</option>
+        <option>Metal</option><option>Blues</option><option>Other</option>
       </select>
-      <label>Latitude:</label>
-      <input type="number" id="lat" step="any" required />
-      <label>Longitude:</label>
-      <input type="number" id="lng" step="any" required />
-      <button class="btn" type="submit">Add Event</button>
-    </form>
+    </label>
+    <label>Location: <input type="text" id="location" placeholder="e.g. Vienna, Austria" required /></label>
+    <label>Description: <textarea id="description"></textarea></label>
+    <button type="submit">Add Event</button>
+  </form>
 
-    <form id="filterForm" onsubmit="filterEvents(event)">
-      <label>Filter by Style:</label>
-      <select id="filterStyle">
-        <option value="">All</option>
-        <option>Jazz</option>
-        <option>Rock</option>
-        <option>Funk</option>
-        <option>Classical</option>
-        <option>Electronic</option>
-      </select>
-      <button class="btn" type="submit">Apply Filter</button>
-    </form>
-
-    <div id="eventsList"></div>
-
-    <div id="adminToggle">
-      <label for="adminPassword">Enter Admin Password:</label>
-      <input type="password" id="adminPassword" />
-      <button class="btn" onclick="activateAdmin()">Enter Admin Mode</button>
-    </div>
+  <div id="filterContainer">
+    <label for="styleFilter">Filter by Music Style:</label>
+    <select id="styleFilter">
+      <option value="">All Styles</option>
+      <option>Jazz</option><option>Rock</option><option>Classical</option>
+      <option>Electronic</option><option>Jam Session</option>
+      <option>Pop</option><option>Hip-hop</option><option>Folk</option>
+      <option>Metal</option><option>Blues</option><option>Other</option>
+    </select>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    const ADMIN_PASSWORD = "2412";
-    let isAdmin = false;
-    const map = L.map("map").setView([48.2, 16.37], 6);
+  <div id="map"></div>
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; OpenStreetMap contributors',
+  <div id="eventList"></div>
+
+  <div id="adminToggleContainer">
+    <label><input type="checkbox" id="adminToggle" /> Admin Mode (password required)</label>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore, collection, addDoc, getDocs,
+      deleteDoc, doc, orderBy, query
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBylr8Qgxzw263rInUmln4AYMpibm1t43o",
+      authDomain: "clifford-146ae.firebaseapp.com",
+      projectId: "clifford-146ae",
+      storageBucket: "clifford-146ae.appspot.com",
+      messagingSenderId: "655375890963",
+      appId: "1:655375890963:web:0153ed600a917c222c9de6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const showFormBtn = document.getElementById("showFormBtn");
+    const form = document.getElementById("eventForm");
+    const styleFilter = document.getElementById("styleFilter");
+    const eventList = document.getElementById("eventList");
+    const adminToggle = document.getElementById("adminToggle");
+
+    const PASSWORD = "2412";
+    let isAdmin = false;
+    let eventsData = [];
+    let markers = [];
+
+    const map = L.map("map").setView([48.2082, 16.3738], 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
 
-    let events = JSON.parse(localStorage.getItem("events")) || [];
+    showFormBtn.onclick = () => {
+      form.style.display = form.style.display === "none" ? "block" : "none";
+    };
 
-    function saveEvents() {
-      localStorage.setItem("events", JSON.stringify(events));
+    async function geocode(loc) {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(loc)}`
+      );
+      const data = await resp.json();
+      if (!data.length) throw new Error("Location not found.");
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
     }
 
-    function renderEvents(filteredStyle = "") {
-      const list = document.getElementById("eventsList");
-      list.innerHTML = "";
-      events.forEach((ev, index) => {
-        if (!filteredStyle || ev.style === filteredStyle) {
-          const div = document.createElement("div");
-          div.className = "event" + (isAdmin ? " admin-mode" : "");
-          div.innerHTML = `
-            <strong>${ev.title}</strong><br/>
-            ${ev.description}<br/>
-            ${new Date(ev.datetime).toLocaleString()}<br/>
-            Style: ${ev.style}
-            <button class="delete-btn" onclick="deleteEvent(${index})">Delete</button>
-          `;
-          list.appendChild(div);
-        }
+    function showDeleteButtons(show) {
+      document.querySelectorAll(".delete-btn").forEach(btn => {
+        btn.style.display = show ? "inline-block" : "none";
       });
     }
 
-    function renderMarkers() {
-      map.eachLayer((layer) => {
-        if (layer instanceof L.Marker) map.removeLayer(layer);
-      });
+    async function loadEvents() {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+      eventList.innerHTML = "";
 
-      events.forEach((ev) => {
-        L.marker([ev.lat, ev.lng])
-          .addTo(map)
-          .bindPopup(`<strong>${ev.title}</strong><br/>${ev.description}<br/>${new Date(ev.datetime).toLocaleString()}`);
-      });
+      const snap = await getDocs(query(collection(db, "events"), orderBy("datetime", "asc")));
+      eventsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      displayEvents();
     }
 
-    function createEvent(e) {
-      e.preventDefault();
-      const newEvent = {
-        title: document.getElementById("title").value,
-        description: document.getElementById("description").value,
-        datetime: document.getElementById("datetime").value,
-        style: document.getElementById("style").value,
-        lat: parseFloat(document.getElementById("lat").value),
-        lng: parseFloat(document.getElementById("lng").value),
-      };
-      events.push(newEvent);
-      saveEvents();
-      renderEvents();
-      renderMarkers();
-      document.getElementById("createForm").reset();
-      toggleForm("createForm", true);
-    }
+    function displayEvents() {
+      eventList.innerHTML = "";
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
 
-    function deleteEvent(index) {
-      if (!isAdmin) return;
-      if (confirm("Are you sure you want to delete this event?")) {
-        events.splice(index, 1);
-        saveEvents();
-        renderEvents();
-        renderMarkers();
-      }
-    }
+      const filtered = styleFilter.value
+        ? eventsData.filter(e => e.style === styleFilter.value)
+        : eventsData;
 
-    function filterEvents(e) {
-      e.preventDefault();
-      const style = document.getElementById("filterStyle").value;
-      renderEvents(style);
-    }
-
-    function activateAdmin() {
-      const entered = document.getElementById("adminPassword").value;
-      if (entered === ADMIN_PASSWORD) {
-        isAdmin = true;
-        renderEvents();
-        alert("Admin mode activated.");
-      } else {
-        alert("Incorrect password.");
-      }
-    }
-
-    function toggleForm(id, forceHide = false) {
-      const form = document.getElementById(id);
-      if (forceHide) {
-        form.style.display = "none";
+      if (!filtered.length) {
+        eventList.innerHTML = "<p>No events found.</p>";
         return;
       }
-      form.style.display = form.style.display === "none" ? "block" : "none";
+
+      filtered.forEach(e => {
+        const div = document.createElement("div");
+        div.className = "event";
+        div.innerHTML = `
+          <button class="delete-btn" data-id="${e.id}">Del</button>
+          <strong>${e.title}</strong><br/>
+          ${new Date(e.datetime).toLocaleString()}<br/>
+          ${e.style}<br/>
+          ${e.location}<br/>
+          ${e.description ? `<p>${e.description}</p>` : ""}
+        `;
+        eventList.appendChild(div);
+
+        const m = L.marker([e.lat, e.lng])
+          .addTo(map)
+          .bindPopup(`<strong>${e.title}</strong><br/>${e.location}`);
+        markers.push(m);
+      });
+
+      showDeleteButtons(isAdmin);
+
+      if (isAdmin) {
+        document.querySelectorAll(".delete-btn").forEach(btn => {
+          btn.onclick = async () => {
+            if (confirm("Delete this event?")) {
+              await deleteDoc(doc(db, "events", btn.dataset.id));
+              loadEvents();
+            }
+          };
+        });
+      }
     }
 
-    renderEvents();
-    renderMarkers();
+    adminToggle.onchange = () => {
+      if (adminToggle.checked) {
+        const p = prompt("Enter admin password:");
+        if (p === PASSWORD) {
+          isAdmin = true;
+          alert("Admin mode ON");
+        } else {
+          alert("Wrong password");
+          adminToggle.checked = false;
+          isAdmin = false;
+        }
+      } else {
+        isAdmin = false;
+      }
+      showDeleteButtons(isAdmin);
+    };
+
+    form.onsubmit = async e => {
+      e.preventDefault();
+      const title = form.title.value.trim();
+      const dt = form.datetime.value;
+      const style = form.style.value;
+      const loc = form.location.value.trim();
+      const desc = form.description.value.trim();
+      if (!title || !dt || !style || !loc) {
+        return alert("Please fill in all required fields.");
+      }
+
+      try {
+        const coords = await geocode(loc);
+        await addDoc(collection(db, "events"), {
+          title, datetime: dt, style, location: loc,
+          description: desc, lat: coords.lat, lng: coords.lng
+        });
+        form.reset();
+        loadEvents();
+      } catch (err) {
+        alert("Error: " + err.message);
+      }
+    };
+
+    styleFilter.onchange = displayEvents;
+    loadEvents();
   </script>
 </body>
 </html>
