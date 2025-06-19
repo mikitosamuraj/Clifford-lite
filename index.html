@@ -1,1 +1,163 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8">
+  <title>Clifford – Hudobné udalosti</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f4f4f4;
+    }
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+    }
+    form {
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    button {
+      margin-top: 15px;
+      padding: 10px 20px;
+      background: #27ae60;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #219150;
+    }
+    .event {
+      background: white;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-left: 4px solid #2980b9;
+      border-radius: 4px;
+    }
+    .event span {
+      display: block;
+      color: #555;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎷 Clifford – Hudobné udalosti</h1>
 
+  <form id="eventForm">
+    <label>Názov udalosti:
+      <input type="text" id="title" required>
+    </label>
+    <label>Dátum a čas:
+      <input type="datetime-local" id="datetime" required>
+    </label>
+    <label>Miesto:
+      <input type="text" id="location" required>
+    </label>
+    <label>Hudobný štýl:
+      <select id="style" required>
+        <option value="">-- Vyber štýl --</option>
+        <option value="Jazz">Jazz</option>
+        <option value="Rock">Rock</option>
+        <option value="Klasika">Klasika</option>
+        <option value="Elektronika">Elektronika</option>
+        <option value="Iné">Iné</option>
+      </select>
+    </label>
+    <label>Popis (nepovinné):
+      <textarea id="description"></textarea>
+    </label>
+    <button type="submit">Pridať udalosť</button>
+  </form>
+
+  <div id="eventList"></div>
+
+  <!-- Firebase -->
+  <script type="module">
+    // Firebase importy
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // 🔐 Tvoj Firebase config (nahraď ak treba)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBylr8Qgxzw263rInUmln4AYMpibm1t43o",
+      authDomain: "clifford-146ae.firebaseapp.com",
+      projectId: "clifford-146ae",
+      storageBucket: "clifford-146ae.appspot.com",
+      messagingSenderId: "655375890963",
+      appId: "1:655375890963:web:0153ed600a917c222c9de6",
+      measurementId: "G-LH3WS88L5W"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const form = document.getElementById('eventForm');
+    const eventList = document.getElementById('eventList');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const now = new Date();
+      const datetimeInput = new Date(document.getElementById('datetime').value);
+
+      if (datetimeInput < now) {
+        alert("Nemôžeš pridať udalosť v minulosti.");
+        return;
+      }
+
+      const newEvent = {
+        title: document.getElementById('title').value,
+        datetime: datetimeInput.toISOString(),
+        location: document.getElementById('location').value,
+        style: document.getElementById('style').value,
+        description: document.getElementById('description').value,
+        createdAt: new Date().toISOString()
+      };
+
+      await addDoc(collection(db, "events"), newEvent);
+      form.reset();
+      loadEvents();
+    });
+
+    async function loadEvents() {
+      eventList.innerHTML = "";
+      const nowISO = new Date().toISOString();
+      const q = query(collection(db, "events"), where("datetime", ">=", nowISO), orderBy("datetime"));
+      const querySnapshot = await getDocs(q);
+      
+      querySnapshot.forEach(doc => {
+        const data = doc.data();
+        const div = document.createElement('div');
+        div.className = 'event';
+        div.innerHTML = `
+          <strong>${data.title}</strong>
+          <span>📅 ${new Date(data.datetime).toLocaleString()}</span>
+          <span>📍 ${data.location}</span>
+          <span>🎵 ${data.style}</span>
+          ${data.description ? `<span>📝 ${data.description}</span>` : ''}
+        `;
+        eventList.appendChild(div);
+      });
+    }
+
+    loadEvents();
+  </script>
+</body>
+</html>
