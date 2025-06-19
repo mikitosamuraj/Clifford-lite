@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Clifford – Music Events (Address Geocoding)</title>
+<title>Clifford – Music Events (Admin & Filter below Map)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -47,9 +47,25 @@
   button:hover {
     background: #219150;
   }
+  #map {
+    height: 400px;
+    max-width: 900px;
+    margin: 20px auto;
+    border-radius: 8px;
+  }
+  /* Filter style & event list moved below map */
+  #filterStyle {
+    max-width: 500px;
+    margin: 20px auto 10px auto;
+    display: block;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    font-size: 1rem;
+  }
   #eventList {
     max-width: 500px;
-    margin: 0 auto;
+    margin: 0 auto 30px auto;
   }
   .event {
     background: white;
@@ -70,291 +86,32 @@
     border-radius: 4px;
     cursor: pointer;
   }
-  #map {
-    height: 400px;
-    max-width: 900px;
-    margin: 20px auto;
-    border-radius: 8px;
-  }
-  /* Filter style */
-  #filterStyle {
+  /* Admin login/logout buttons */
+  #authButtons {
     max-width: 500px;
-    margin: 0 auto 30px auto;
-    display: block;
-    padding: 8px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-    font-size: 1rem;
+    margin: 0 auto 20px auto;
+    text-align: center;
   }
-</style>
-</head>
-<body>
-
-<h1>🎷 Clifford – Music Events (Address Geocoding)</h1>
-
-<form id="eventForm">
-  <label>Event Title:
-    <input type="text" id="title" required />
-  </label>
-  <label>Date & Time:
-    <input type="datetime-local" id="datetime" required />
-  </label>
-  <label>Music Style:
-    <select id="style" required>
-      <option value="">-- Choose --</option>
-      <option>Jazz</option><option>Rock</option><option>Classical</option>
-      <option>Electronic</option><option>Jam Session</option>
-      <option>Pop</option><option>Hip-hop</option><option>Folk</option>
-      <option>Metal</option><option>Blues</option><option>Other</option>
-    </select>
-  </label>
-  <label>Location (city, address or place):
-    <input type="text" id="location" placeholder="e.g. Vienna, Austria" required />
-  </label>
-  <label>Description (optional):
-    <textarea id="description"></textarea>
-  </label>
-  <button type="submit">Add Event</button>
-</form>
-
-<div id="eventList"></div>
-
-<label for="filterStyle" style="text-align:center; display:block; max-width:500px; margin: 0 auto 20px auto;">
-  Filter by music style:
-  <select id="filterStyle">
-    <option value="">Show all</option>
-    <option>Jazz</option><option>Rock</option><option>Classical</option>
-    <option>Electronic</option><option>Jam Session</option><option>Pop</option>
-    <option>Hip-hop</option><option>Folk</option><option>Metal</option>
-    <option>Blues</option><option>Other</option>
-  </select>
-</label>
-
-<div id="map"></div>
-
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-<!-- Firebase JS SDK -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import {
-    getFirestore, collection, addDoc, getDocs,
-    deleteDoc, doc, orderBy, query
-  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyBylr8Qgxzw263rInUmln4AYMpibm1t43o",
-    authDomain: "clifford-146ae.firebaseapp.com",
-    projectId: "clifford-146ae",
-    storageBucket: "clifford-146ae.appspot.com",
-    messagingSenderId: "655375890963",
-    appId: "1:655375890963:web:0153ed600a917c222c9de6"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-
-  const form = document.getElementById("eventForm");
-  const eventList = document.getElementById("eventList");
-
-  // Initialize map
-  const map = L.map("map").setView([48.2082, 16.3738], 5); // default center EU
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap contributors"
-  }).addTo(map);
-
-  let markers = [];
-
-  async function geocode(location) {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}`;
-    const resp = await fetch(url);
-    const data = await resp.json();
-    if (data && data.length > 0) {
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    } else {
-      throw new Error("Location not found.");
-    }
+  #authButtons button {
+    margin: 0 10px;
+    background: #2980b9;
   }
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const title = form.title.value.trim();
-    const datetime = form.datetime.value;
-    const style = form.style.value;
-    const locationText = form.location.value.trim();
-    const description = form.description.value.trim();
-
-    if (!title || !datetime || !style || !locationText) {
-      alert("Please fill all required fields.");
-      return;
-    }
-
-    try {
-      const coords = await geocode(locationText);
-
-      const eventObj = {
-        title,
-        datetime: new Date(datetime).toISOString(),
-        style,
-        location: locationText,
-        description,
-        lat: coords.lat,
-        lng: coords.lng,
-        createdAt: new Date().toISOString()
-      };
-
-      await addDoc(collection(db, "events"), eventObj);
-
-      form.reset();
-      loadEvents();
-    } catch (err) {
-      alert("Error: " + err.message);
-    }
-  });
-
-  async function loadEvents() {
-    const selectedStyle = document.getElementById("filterStyle")?.value || "";
-
-    markers.forEach(m => map.removeLayer(m));
-    markers = [];
-    eventList.innerHTML = "";
-
-    const q = query(collection(db, "events"), orderBy("datetime", "asc"));
-    const snapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      eventList.innerHTML = "<p>No events yet.</p>";
-      return;
-    }
-
-    snapshot.forEach(docSnap => {
-      const d = docSnap.data();
-      if (selectedStyle && d.style !== selectedStyle) return;
-
-      const div = document.createElement("div");
-      div.className = "event";
-      div.innerHTML = `
-        <strong>${d.title}</strong><br />
-        Date: ${new Date(d.datetime).toLocaleString()}<br />
-        Style: ${d.style}<br />
-        Location: ${d.location}<br />
-        ${d.description ? `<p>${d.description}</p>` : ""}
-        <button class="delete-btn" data-id="${docSnap.id}">Delete</button>
-      `;
-      eventList.appendChild(div);
-
-      const marker = L.marker([d.lat, d.lng]).addTo(map);
-      marker.bindPopup(`<b>${d.title}</b><br>${new Date(d.datetime).toLocaleString()}<br>${d.style}<br>${d.location}`);
-      markers.push(marker);
-
-      div.querySelector(".delete-btn").addEventListener("click", async () => {
-        if (confirm("Are you sure you want to delete this event?")) {
-          await deleteDoc(doc(db, "events", docSnap.id));
-          loadEvents();
-        }
-      });
-    });
-
-    if (markers.length > 0) {
-      const group = new L.featureGroup(markers);
-      map.fitBounds(group.getBounds().pad(0
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<title>Clifford – Music Events (Address Geocoding)</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    margin: 20px;
-    background: #f9f9f9;
+  #authButtons button:hover {
+    background: #1f6391;
   }
-  h1 {
+  #userInfo {
+    max-width: 500px;
+    margin: 0 auto 10px auto;
     text-align: center;
     color: #2c3e50;
   }
-  form {
-    background: white;
-    padding: 15px;
-    border-radius: 8px;
-    max-width: 500px;
-    margin: 0 auto 20px auto;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  }
-  label {
-    display: block;
-    margin-top: 10px;
-  }
-  input, select, textarea {
-    width: 100%;
-    padding: 8px;
-    margin-top: 5px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-  }
-  button {
-    margin-top: 15px;
-    padding: 10px 20px;
-    background: #27ae60;
-    border: none;
-    color: white;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  button:hover {
-    background: #219150;
-  }
-  #eventList {
-    max-width: 500px;
-    margin: 0 auto;
-  }
-  .event {
-    background: white;
-    padding: 10px;
-    margin-bottom: 10px;
-    border-left: 5px solid #2980b9;
-    border-radius: 4px;
-    position: relative;
-  }
-  .delete-btn {
-    position: absolute;
-    right: 10px;
-    top: 10px;
-    background: #c0392b;
-    border: none;
-    color: white;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  #map {
-    height: 400px;
-    max-width: 900px;
-    margin: 20px auto;
-    border-radius: 8px;
-  }
-  /* Filter style */
-  #filterStyle {
-    max-width: 500px;
-    margin: 0 auto 30px auto;
-    display: block;
-    padding: 8px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-    font-size: 1rem;
-  }
 </style>
 </head>
 <body>
 
-<h1>🎷 Clifford – Music Events (Address Geocoding)</h1>
+<h1>🎷 Clifford – Music Events (Admin & Filter below Map)</h1>
 
+<!-- Event Creation Form -->
 <form id="eventForm">
   <label>Event Title:
     <input type="text" id="title" required />
@@ -380,9 +137,18 @@
   <button type="submit">Add Event</button>
 </form>
 
-<div id="eventList"></div>
+<!-- Google Login/Logout Buttons -->
+<div id="authButtons">
+  <button id="loginBtn">Login with Google</button>
+  <button id="logoutBtn" style="display:none;">Logout</button>
+</div>
+<div id="userInfo"></div>
 
-<label for="filterStyle" style="text-align:center; display:block; max-width:500px; margin: 0 auto 20px auto;">
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Filter and event list below map -->
+<label for="filterStyle" style="text-align:center; display:block;">
   Filter by music style:
   <select id="filterStyle">
     <option value="">Show all</option>
@@ -393,18 +159,22 @@
   </select>
 </label>
 
-<div id="map"></div>
+<div id="eventList"></div>
 
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-<!-- Firebase JS SDK -->
+<!-- Firebase SDK & Auth -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import {
     getFirestore, collection, addDoc, getDocs,
     deleteDoc, doc, orderBy, query
   } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  import {
+    getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBylr8Qgxzw263rInUmln4AYMpibm1t43o",
@@ -415,20 +185,34 @@
     appId: "1:655375890963:web:0153ed600a917c222c9de6"
   };
 
+  // Initialize Firebase
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const auth = getAuth(app);
 
+  // Admin email - iba tento používateľ môže mazať eventy
+  const ADMIN_EMAIL = "admin@example.com";
+
+  // DOM refs
   const form = document.getElementById("eventForm");
   const eventList = document.getElementById("eventList");
+  const filterStyle = document.getElementById("filterStyle");
+  const loginBtn = document.getElementById("loginBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const userInfo = document.getElementById("userInfo");
 
-  // Initialize map
-  const map = L.map("map").setView([48.2082, 16.3738], 5); // default center EU
+  // Map init
+  const map = L.map("map").setView([48.2082, 16.3738], 5); // default EU center
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap contributors"
   }).addTo(map);
-
   let markers = [];
 
+  // Track current user
+  let currentUser = null;
+  let isAdmin = false;
+
+  // Geocode function
   async function geocode(location) {
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}`;
     const resp = await fetch(url);
@@ -440,8 +224,14 @@
     }
   }
 
+  // Add event submit
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+
+    if (!currentUser) {
+      alert("Please login to add events.");
+      return;
+    }
 
     const title = form.title.value.trim();
     const datetime = form.datetime.value;
@@ -465,7 +255,8 @@
         description,
         lat: coords.lat,
         lng: coords.lng,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        createdBy: currentUser.email
       };
 
       await addDoc(collection(db, "events"), eventObj);
@@ -477,8 +268,9 @@
     }
   });
 
+  // Load events and show in list + map
   async function loadEvents() {
-    const selectedStyle = document.getElementById("filterStyle")?.value || "";
+    const selectedStyle = filterStyle.value || "";
 
     markers.forEach(m => map.removeLayer(m));
     markers = [];
@@ -504,7 +296,7 @@
         Style: ${d.style}<br />
         Location: ${d.location}<br />
         ${d.description ? `<p>${d.description}</p>` : ""}
-        <button class="delete-btn" data-id="${docSnap.id}">Delete</button>
+        ${isAdmin ? `<button class="delete-btn" data-id="${docSnap.id}">Delete</button>` : ""}
       `;
       eventList.appendChild(div);
 
@@ -512,12 +304,14 @@
       marker.bindPopup(`<b>${d.title}</b><br>${new Date(d.datetime).toLocaleString()}<br>${d.style}<br>${d.location}`);
       markers.push(marker);
 
-      div.querySelector(".delete-btn").addEventListener("click", async () => {
-        if (confirm("Are you sure you want to delete this event?")) {
-          await deleteDoc(doc(db, "events", docSnap.id));
-          loadEvents();
-        }
-      });
+      if (isAdmin) {
+        div.querySelector(".delete-btn").addEventListener("click", async () => {
+          if (confirm("Are you sure you want to delete this event?")) {
+            await deleteDoc(doc(db, "events", docSnap.id));
+            loadEvents();
+          }
+        });
+      }
     });
 
     if (markers.length > 0) {
@@ -528,12 +322,44 @@
     }
   }
 
-  // Initial load
+  // Filter event reload
+  filterStyle.addEventListener("change", loadEvents);
+
+  // Firebase Authentication handlers
+  loginBtn.addEventListener("click", async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      alert("Login failed: " + err.message);
+    }
+  });
+
+  logoutBtn.addEventListener("click", async () => {
+    await signOut(auth
+
+    await signOut(auth);
+  });
+
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    if (user) {
+      userInfo.textContent = `Logged in as: ${user.email}`;
+      loginBtn.style.display = "none";
+      logoutBtn.style.display = "inline-block";
+      // Nastav admin flag podľa emailu
+      isAdmin = (user.email === ADMIN_EMAIL);
+    } else {
+      userInfo.textContent = "Not logged in";
+      loginBtn.style.display = "inline-block";
+      logoutBtn.style.display = "none";
+      isAdmin = false;
+    }
+    loadEvents();
+  });
+
+  // Naštartujeme načítanie eventov hneď po načítaní stránky
   loadEvents();
-
-  // Filter change event
-  document.getElementById("filterStyle").addEventListener("change", loadEvents);
-
 </script>
 
 </body>
