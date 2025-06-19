@@ -64,16 +64,18 @@
     }
     .delete-btn {
       position: absolute;
-      top: 10px;
-      right: 10px;
+      top: 8px;
+      right: 8px;
+      width: 50px;
+      height: 22px;
+      font-size: 10px;
       background: #c0392b;
       color: #fff;
       border: none;
-      padding: 5px 10px;
-      font-size: 12px;
       border-radius: 3px;
       cursor: pointer;
       display: none;
+      z-index: 1;
     }
     .delete-btn:hover {
       background: #a83228;
@@ -87,7 +89,6 @@
 
   <h1>🎷 Clifford – Music Events</h1>
 
-  <!-- Form -->
   <form id="eventForm">
     <label>Event Title: <input type="text" id="title" required /></label>
     <label>Date & Time: <input type="datetime-local" id="datetime" required /></label>
@@ -105,7 +106,6 @@
     <button type="submit">Add Event</button>
   </form>
 
-  <!-- Filter -->
   <div id="filterContainer">
     <label for="styleFilter">Filter by Music Style:</label>
     <select id="styleFilter">
@@ -117,18 +117,14 @@
     </select>
   </div>
 
-  <!-- Map -->
   <div id="map"></div>
 
-  <!-- Event List -->
   <div id="eventList"></div>
 
-  <!-- Admin Mode -->
   <div id="adminToggleContainer">
     <label><input type="checkbox" id="adminToggle" /> Admin Mode (password required)</label>
   </div>
 
-  <!-- Scripts -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -145,6 +141,7 @@
       messagingSenderId: "655375890963",
       appId: "1:655375890963:web:0153ed600a917c222c9de6"
     };
+
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
@@ -179,7 +176,6 @@
     }
 
     async function loadEvents() {
-      // Clear previous
       markers.forEach(m => map.removeLayer(m));
       markers = [];
       eventList.innerHTML = "";
@@ -207,7 +203,7 @@
         const div = document.createElement("div");
         div.className = "event";
         div.innerHTML = `
-          <button class="delete-btn" data-id="${e.id}">Delete</button>
+          <button class="delete-btn" data-id="${e.id}">Del</button>
           <strong>${e.title}</strong><br/>
           ${new Date(e.datetime).toLocaleString()}<br/>
           ${e.style}<br/>
