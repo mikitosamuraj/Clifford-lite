@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Clifford – Music Events</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: 30px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    form {
+      margin-bottom: 30px;
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px #ccc;
+    }
+    input, textarea, button {
+      width: 100%;
+      margin: 8px 0;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      background: #0077cc;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover {
+      background: #005fa3;
+    }
+    .event {
+      background: #fff;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      box-shadow: 0 0 3px #bbb;
+    }
+    .event button {
+      width: auto;
+      margin-top: 10px;
+      background: #d9534f;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎷 Clifford – Add Music Event</h1>
+
+  <form id="event-form">
+    <input type="text" id="event-title" placeholder="Event Title" required />
+    <input type="text" id="event-location" placeholder="Location" required />
+    <input type="date" id="event-date" required />
+    <textarea id="event-description" placeholder="Description" rows="3"></textarea>
+    <button type="submit">Add Event</button>
+  </form>
+
+  <div id="events-list"></div>
+
+  <script>
+    const form = document.getElementById('event-form');
+    const titleInput = document.getElementById('event-title');
+    const locationInput = document.getElementById('event-location');
+    const dateInput = document.getElementById('event-date');
+    const descInput = document.getElementById('event-description');
+    const eventsList = document.getElementById('events-list');
+
+    let events = JSON.parse(localStorage.getItem('cliffordEvents')) || [];
+
+    function saveEvents() {
+      localStorage.setItem('cliffordEvents', JSON.stringify(events));
+    }
+
+    function renderEvents() {
+      eventsList.innerHTML = '';
+      events.forEach((event, index) => {
+        const div = document.createElement('div');
+        div.className = 'event';
+        div.innerHTML = `
+          <h3>${event.title}</h3>
+          <p><strong>Date:</strong> ${event.date}</p>
+          <p><strong>Location:</strong> ${event.location}</p>
+          <p>${event.description}</p>
+          <button onclick="deleteEvent(${index})">Delete</button>
+        `;
+        eventsList.appendChild(div);
+      });
+    }
+
+    function deleteEvent(index) {
+      events.splice(index, 1);
+      saveEvents();
+      renderEvents();
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const newEvent = {
+        title: titleInput.value,
+        location: locationInput.value,
+        date: dateInput.value,
+        description: descInput.value,
+      };
+      events.push(newEvent);
+      saveEvents();
+      renderEvents();
+      form.reset();
+    });
+
+    renderEvents();
+  </script>
+</body>
+</html>
