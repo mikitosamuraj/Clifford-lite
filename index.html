@@ -47,10 +47,6 @@
   button:hover {
     background: #219150;
   }
-  #filterContainer {
-    max-width: 500px;
-    margin: 0 auto 10px auto;
-  }
   #eventList {
     max-width: 500px;
     margin: 20px auto 0 auto;
@@ -73,6 +69,7 @@
     padding: 5px 10px;
     border-radius: 4px;
     cursor: pointer;
+    display: none; /* hidden by default */
   }
   #map {
     height: 400px;
@@ -80,11 +77,27 @@
     margin: 20px auto;
     border-radius: 8px;
   }
+  #adminToggleContainer {
+    max-width: 900px;
+    margin: 0 auto 10px auto;
+    text-align: right;
+  }
+  #filterContainer {
+    max-width: 900px;
+    margin: 0 auto;
+    margin-bottom: 10px;
+  }
+  #styleFilter {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    width: 200px;
+  }
 </style>
 </head>
 <body>
 
-<h1>🎷 Clifford – Music Events </h1>
+<h1>🎷 Clifford – Music Events (Address Geocoding)</h1>
 
 <form id="eventForm">
   <label>Event Title:
@@ -111,9 +124,16 @@
   <button type="submit">Add Event</button>
 </form>
 
+<div id="adminToggleContainer">
+  <label>
+    <input type="checkbox" id="adminToggle" />
+    Admin Mode (requires password)
+  </label>
+</div>
+
 <div id="filterContainer">
-  <label for="filterStyle">Filter by Music Style:</label>
-  <select id="filterStyle">
+  <label for="styleFilter">Filter by Music Style:</label>
+  <select id="styleFilter">
     <option value="">All Styles</option>
     <option>Jazz</option><option>Rock</option><option>Classical</option>
     <option>Electronic</option><option>Jam Session</option>
@@ -149,23 +169,24 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  // Your admin email
-  const adminEmail = "michael.arvay2@gmail.com";
-
   const form = document.getElementById("eventForm");
   const eventList = document.getElementById("eventList");
-  const filterStyle = document.getElementById("filterStyle");
+  const adminToggleCheckbox = document.getElementById("adminToggle");
+  const styleFilter = document.getElementById("styleFilter");
 
   // Initialize map
-  const map = L.map("map").setView([48.2082, 16.3738], 5);
+  const map = L.map("map").setView([48.2082, 16.3738], 5); // default center EU
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap contributors"
   }).addTo(map);
 
+  // Keep markers so we can clear them later
   let markers = [];
-  let eventsData = [];
 
-  // Simple geocode with Nominatim
+  // Admin mode status
+  let isAdmin = false;
+
+  // Geocode function using Nominatim
   async function geocode(location) {
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}`;
     const resp = await fetch(url);
@@ -177,46 +198,22 @@
     }
   }
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
+  // Show or hide delete buttons based on admin mode
+  function showDeleteButtons(show) {
+    document.querySelectorAll(".delete-btn").forEach(btn => {
+      btn.style.display = show ? "inline-block" : "none";
+    });
+  }
 
-    const title = form.title.value.trim();
-    const datetime = form.datetime.value;
-    const style = form.style.value;
-    const locationText = form.location.value.trim();
-    const description = form.description.value.trim();
+  // Filter events by selected style
+  function filterEventsByStyle(events, style) {
+    if (!style) return events;
+    return events.filter(e => e.style === style);
+  }
 
-    if (!title || !datetime || !style || !locationText) {
-      alert("Please fill all required fields.");
-      return;
-    }
-
-    try {
-      const coords = await geocode(locationText);
-
-      const eventObj = {
-        title,
-        datetime: new Date(datetime).toISOString(),
-        style,
-        location: locationText,
-        description,
-        lat: coords.lat,
-        lng: coords.lng,
-        createdAt: new Date().toISOString(),
-        creatorEmail: adminEmail  // We treat all events as created by admin (since no login)
-      };
-
-      await addDoc(collection(db, "events"), eventObj);
-
-      form.reset();
-      loadEvents();
-    } catch (err) {
-      alert("Error: " + err.message);
-    }
-  });
-
+  // Load and display events, optionally filtered by style
   async function loadEvents() {
-    // Remove existing markers
+    // Clear previous markers
     markers.forEach(m => map.removeLayer(m));
     markers = [];
 
@@ -230,77 +227,127 @@
       return;
     }
 
-    eventsData = [];
+    // Gather events in array for filtering
+    const events = [];
     snapshot.forEach(docSnap => {
       const d = docSnap.data();
       d.id = docSnap.id;
-      eventsData.push(d);
+      events.push(d);
     });
 
-    displayEvents();
-  }
-
-  function displayEvents() {
-    eventList.innerHTML = "";
-    markers.forEach(m => map.removeLayer(m));
-    markers = [];
-
-    const filteredEvents = eventsData.filter(ev => {
-      if (!filterStyle.value) return true;
-      return ev.style === filterStyle.value;
-    });
+    const filteredEvents = filterEventsByStyle(events, styleFilter.value);
 
     if (filteredEvents.length === 0) {
-      eventList.innerHTML = "<p>No events match the selected filter.</p>";
+      eventList.innerHTML = "<p>No events match the filter.</p>";
       return;
     }
 
-    filteredEvents.forEach(ev => {
-      // Add marker
-      const marker = L.marker([ev.lat, ev.lng]).addTo(map);
-      marker.bindPopup(`<b>${ev.title}</b><br>${new Date(ev.datetime).toLocaleString()}<br>${ev.style}<br>${ev.location}<br>${ev.description || ""}`);
-      markers.push(marker);
-
+    filteredEvents.forEach(d => {
       // Create event card
       const div = document.createElement("div");
       div.className = "event";
+      div.innerHTML = `
+        <strong>${d.title}</strong><br />
+        Date: ${new Date(d.datetime).toLocaleString()}<br />
+        Style: ${d.style}<br />
+        Location: ${d.location}<br />
+        ${d.description ? `<p>${d.description}</p>`
 
-      let html = `<strong>${ev.title}</strong><br>`;
-      html += `${new Date(ev.datetime).toLocaleString()}<br>`;
-      html += `<em>${ev.style}</em><br>`;
-      html += `${ev.location}<br>`;
-      if (ev.description) html += `<p>${ev.description}</p>`;
+        ${d.description ? `<p>${d.description}</p>` : ""}
+        <button class="delete-btn" data-id="${d.id}">Delete</button>
+      `;
 
-      // Show Delete button only if current user is admin (no login, so only your email)
-      if (ev.creatorEmail === adminEmail) {
-        html += `<button class="delete-btn" data-id="${ev.id}">Delete</button>`;
-      }
-
-      div.innerHTML = html;
       eventList.appendChild(div);
+
+      // Add marker on map
+      const marker = L.marker([d.lat, d.lng]).addTo(map)
+        .bindPopup(`<strong>${d.title}</strong><br>${new Date(d.datetime).toLocaleString()}<br>${d.style}<br>${d.location}`);
+
+      markers.push(marker);
     });
 
-    // Add delete button listeners
-    document.querySelectorAll(".delete-btn").forEach(btn => {
-      btn.addEventListener("click", async (e) => {
-        const id = e.target.getAttribute("data-id");
-        if (confirm("Are you sure you want to delete this event?")) {
-          try {
-            await deleteDoc(doc(db, "events", id));
-            loadEvents();
-          } catch (error) {
-            alert("Error deleting event: " + error.message);
+    showDeleteButtons(isAdmin);
+
+    // Attach delete event handlers only if admin
+    if (isAdmin) {
+      document.querySelectorAll(".delete-btn").forEach(btn => {
+        btn.onclick = async () => {
+          const id = btn.getAttribute("data-id");
+          if (confirm("Are you sure you want to delete this event?")) {
+            try {
+              await deleteDoc(doc(db, "events", id));
+              alert("Event deleted.");
+              loadEvents(); // reload events after deletion
+            } catch (err) {
+              alert("Error deleting event: " + err.message);
+            }
           }
-        }
+        };
       });
-    });
+    }
   }
 
-  filterStyle.addEventListener("change", displayEvents);
+  // When admin toggle changes
+  adminToggleCheckbox.addEventListener("change", () => {
+    if (adminToggleCheckbox.checked) {
+      const pwd = prompt("Enter admin password:");
+      if (pwd === "2412") {
+        isAdmin = true;
+        alert("Admin mode enabled.");
+      } else {
+        alert("Incorrect password. Admin mode NOT enabled.");
+        adminToggleCheckbox.checked = false;
+        isAdmin = false;
+      }
+    } else {
+      isAdmin = false;
+    }
+    showDeleteButtons(isAdmin);
+  });
 
-  // Initial load
+  // Form submit: add new event
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = document.getElementById("title").value.trim();
+    const datetime = document.getElementById("datetime").value;
+    const style = document.getElementById("style").value;
+    const location = document.getElementById("location").value.trim();
+    const description = document.getElementById("description").value.trim();
+
+    if (!title || !datetime || !style || !location) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+
+    try {
+      const coords = await geocode(location);
+      await addDoc(collection(db, "events"), {
+        title,
+        datetime,
+        style,
+        location,
+        description,
+        lat: coords.lat,
+        lng: coords.lng,
+        createdAt: new Date().toISOString()
+      });
+      alert("Event added!");
+      form.reset();
+      loadEvents();
+    } catch (err) {
+      alert("Error adding event: " + err.message);
+    }
+  });
+
+  // Filter change: reload events with filter
+  styleFilter.addEventListener("change", () => {
+    loadEvents();
+  });
+
+  // Initial load of events
   loadEvents();
 
 </script>
+
 </body>
 </html>
