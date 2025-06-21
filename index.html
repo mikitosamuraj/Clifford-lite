@@ -32,6 +32,7 @@
       padding: 8px;
       margin-top: 5px;
       font-size: 14px;
+      box-sizing: border-box;
     }
     button {
       background: #27ae60;
@@ -133,6 +134,7 @@
       deleteDoc, doc, orderBy, query
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyBylr8Qgxzw263rInUmln4AYMpibm1t43o",
       authDomain: "clifford-146ae.firebaseapp.com",
@@ -145,21 +147,25 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // DOM Elements
     const form = document.getElementById("eventForm");
     const styleFilter = document.getElementById("styleFilter");
     const eventList = document.getElementById("eventList");
     const adminToggle = document.getElementById("adminToggle");
 
+    // Admin password
     const PASSWORD = "2412";
     let isAdmin = false;
     let eventsData = [];
     let markers = [];
 
+    // Initialize Leaflet map (centered on Europe)
     const map = L.map("map").setView([48.2082, 16.3738], 5);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
 
+    // Geocode location string to lat/lng using Nominatim API
     async function geocode(loc) {
       const resp = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(loc)}`
@@ -169,27 +175,34 @@
       return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
     }
 
+    // Show or hide all delete buttons
     function showDeleteButtons(show) {
       document.querySelectorAll(".delete-btn").forEach(btn => {
         btn.style.display = show ? "inline-block" : "none";
       });
     }
 
+    // Load events from Firestore and refresh display
     async function loadEvents() {
+      // Remove all markers from map
       markers.forEach(m => map.removeLayer(m));
       markers = [];
       eventList.innerHTML = "";
 
+      // Get all events ordered by date/time ascending
       const snap = await getDocs(query(collection(db, "events"), orderBy("datetime", "asc")));
       eventsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
       displayEvents();
     }
 
+    // Display events filtered by style and show markers on the map
     function displayEvents() {
       eventList.innerHTML = "";
       markers.forEach(m => map.removeLayer(m));
       markers = [];
 
+      // Filter by style if selected
       const filtered = styleFilter.value
         ? eventsData.filter(e => e.style === styleFilter.value)
         : eventsData;
@@ -200,38 +213,45 @@
       }
 
       filtered.forEach(e => {
+        // Create event div
         const div = document.createElement("div");
         div.className = "event";
         div.innerHTML = `
           <button class="delete-btn" data-id="${e.id}">Del</button>
           <strong>${e.title}</strong><br/>
           ${new Date(e.datetime).toLocaleString()}<br/>
-          ${e.style}<br/>
+          <em>${e.style}</em><br/>
           ${e.location}<br/>
           ${e.description ? `<p>${e.description}</p>` : ""}
         `;
         eventList.appendChild(div);
 
-        const m = L.marker([e.lat, e.lng])
-          .addTo(map)
-          .bindPopup(`<strong>${e.title}</strong><br/>${e.location}`);
-        markers.push(m);
+        // Add marker to map
+        if (e.lat && e.lng) {
+          const marker = L.marker([e.lat, e.lng])
+            .addTo(map)
+            .bindPopup(`<strong>${e.title}</strong><br/>${e.location}`);
+          markers.push(marker);
+        }
       });
 
+      // Show or hide delete buttons based on admin mode
       showDeleteButtons(isAdmin);
 
+      // Attach delete event handlers in admin mode
       if (isAdmin) {
         document.querySelectorAll(".delete-btn").forEach(btn => {
           btn.onclick = async () => {
             if (confirm("Delete this event?")) {
               await deleteDoc(doc(db, "events", btn.dataset.id));
-              loadEvents();
+              await loadEvents();
             }
           };
         });
       }
     }
 
+    // Admin toggle with password prompt
     adminToggle.onchange = () => {
       if (adminToggle.checked) {
         const p = prompt("Enter admin password:");
@@ -249,13 +269,16 @@
       showDeleteButtons(isAdmin);
     };
 
+    // Handle event form submit: geocode location, add event to Firestore, reload events
     form.onsubmit = async e => {
       e.preventDefault();
+
       const title = form.title.value.trim();
       const dt = form.datetime.value;
       const style = form.style.value;
       const loc = form.location.value.trim();
       const desc = form.description.value.trim();
+
       if (!title || !dt || !style || !loc) {
         return alert("Please fill in all required fields.");
       }
@@ -263,17 +286,25 @@
       try {
         const coords = await geocode(loc);
         await addDoc(collection(db, "events"), {
-          title, datetime: dt, style, location: loc,
-          description: desc, lat: coords.lat, lng: coords.lng
+          title,
+          datetime: dt,
+          style,
+          location: loc,
+          description: desc,
+          lat: coords.lat,
+          lng: coords.lng
         });
         form.reset();
-        loadEvents();
+        await loadEvents();
       } catch (err) {
         alert("Error: " + err.message);
       }
     };
 
+    // When user changes style filter, redisplay events
     styleFilter.onchange = displayEvents;
+
+    // Load events initially
     loadEvents();
   </script>
 </body>
