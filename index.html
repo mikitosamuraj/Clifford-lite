@@ -32,7 +32,6 @@
       padding: 8px;
       margin-top: 5px;
       font-size: 14px;
-      box-sizing: border-box;
     }
     button {
       background: #27ae60;
@@ -45,12 +44,12 @@
       background: #219150;
     }
     #map {
-      height: 200px; /* Upravené z 400px na 200px */
+      height: 200px;
       max-width: 900px;
       margin: 0 auto 20px auto;
       border-radius: 8px;
     }
-    #eventList {
+    #eventList, #pendingList {
       max-width: 600px;
       margin: 20px auto;
     }
@@ -63,26 +62,46 @@
       position: relative;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    .delete-btn {
+    .pending {
+      border-left-color: #f39c12;
+      background: #fff8e1;
+    }
+    .delete-btn, .approve-btn {
       position: absolute;
       top: 8px;
-      right: 8px;
       width: 50px;
       height: 22px;
       font-size: 10px;
-      background: #c0392b;
       color: #fff;
       border: none;
       border-radius: 3px;
       cursor: pointer;
-      display: none;
       z-index: 1;
+    }
+    .delete-btn {
+      right: 8px;
+      background: #c0392b;
+      display: none;
     }
     .delete-btn:hover {
       background: #a83228;
     }
+    .approve-btn {
+      right: 65px;
+      background: #27ae60;
+      display: none;
+    }
+    .approve-btn:hover {
+      background: #219150;
+    }
     #adminToggleContainer {
       text-align: center;
+    }
+    #pendingHeader {
+      max-width: 600px;
+      margin: 20px auto 5px auto;
+      font-weight: bold;
+      color: #f39c12;
     }
   </style>
 </head>
@@ -122,6 +141,9 @@
 
   <div id="eventList"></div>
 
+  <div id="pendingHeader" style="display:none;">Pending Events (Admin only):</div>
+  <div id="pendingList"></div>
+
   <div id="adminToggleContainer">
     <label><input type="checkbox" id="adminToggle" /> Admin Mode (password required)</label>
   </div>
@@ -131,10 +153,9 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import {
       getFirestore, collection, addDoc, getDocs,
-      deleteDoc, doc, orderBy, query
+      deleteDoc, doc, orderBy, query, setDoc, getDoc
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyBylr8Qgxzw263rInUmln4AYMpibm1t43o",
       authDomain: "clifford-146ae.firebaseapp.com",
@@ -147,25 +168,24 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // DOM Elements
     const form = document.getElementById("eventForm");
     const styleFilter = document.getElementById("styleFilter");
     const eventList = document.getElementById("eventList");
+    const pendingList = document.getElementById("pendingList");
+    const pendingHeader = document.getElementById("pendingHeader");
     const adminToggle = document.getElementById("adminToggle");
 
-    // Admin password
     const PASSWORD = "2412";
     let isAdmin = false;
     let eventsData = [];
+    let pendingData = [];
     let markers = [];
 
-    // Initialize Leaflet map (centered on Europe)
     const map = L.map("map").setView([48.2082, 16.3738], 5);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
 
-    // Geocode location string to lat/lng using Nominatim API
     async function geocode(loc) {
       const resp = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(loc)}`
@@ -175,34 +195,43 @@
       return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
     }
 
-    // Show or hide all delete buttons
     function showDeleteButtons(show) {
       document.querySelectorAll(".delete-btn").forEach(btn => {
         btn.style.display = show ? "inline-block" : "none";
       });
+      document.querySelectorAll(".approve-btn").forEach(btn => {
+        btn.style.display = show ? "inline-block" : "none";
+      });
     }
 
-    // Load events from Firestore and refresh display
     async function loadEvents() {
-      // Remove all markers from map
       markers.forEach(m => map.removeLayer(m));
       markers = [];
       eventList.innerHTML = "";
+      pendingList.innerHTML = "";
+      pendingHeader.style.display = "none";
 
-      // Get all events ordered by date/time ascending
+      // Load approved events
       const snap = await getDocs(query(collection(db, "events"), orderBy("datetime", "asc")));
       eventsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+      // Load pending events only if admin
+      if (isAdmin) {
+        const pendingSnap = await getDocs(query(collection(db, "pendingEvents"), orderBy("datetime", "asc")));
+        pendingData = pendingSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      } else {
+        pendingData = [];
+      }
+
       displayEvents();
+      if (isAdmin) displayPendingEvents();
     }
 
-    // Display events filtered by style and show markers on the map
     function displayEvents() {
       eventList.innerHTML = "";
       markers.forEach(m => map.removeLayer(m));
       markers = [];
 
-      // Filter by style if selected
       const filtered = styleFilter.value
         ? eventsData.filter(e => e.style === styleFilter.value)
         : eventsData;
@@ -213,99 +242,169 @@
       }
 
       filtered.forEach(e => {
-        // Create event div
         const div = document.createElement("div");
         div.className = "event";
         div.innerHTML = `
           <button class="delete-btn" data-id="${e.id}">Del</button>
           <strong>${e.title}</strong><br/>
           ${new Date(e.datetime).toLocaleString()}<br/>
-          <em>${e.style}</em><br/>
+          ${e.style}<br/>
           ${e.location}<br/>
           ${e.description ? `<p>${e.description}</p>` : ""}
         `;
         eventList.appendChild(div);
 
-        // Add marker to map
-        if (e.lat && e.lng) {
-          const marker = L.marker([e.lat, e.lng])
-            .addTo(map)
-            .bindPopup(`<strong>${e.title}</strong><br/>${e.location}`);
-          markers.push(marker);
-        }
+        const m = L.marker([e.lat, e.lng])
+          .addTo(map)
+          .bindPopup(`<strong>${e.title}</strong><br/>${e.location}`);
+        markers.push(m);
       });
 
-      // Show or hide delete buttons based on admin mode
       showDeleteButtons(isAdmin);
 
-      // Attach delete event handlers in admin mode
       if (isAdmin) {
         document.querySelectorAll(".delete-btn").forEach(btn => {
           btn.onclick = async () => {
             if (confirm("Delete this event?")) {
               await deleteDoc(doc(db, "events", btn.dataset.id));
-              await loadEvents();
+              loadEvents();
             }
           };
         });
       }
     }
 
-    // Admin toggle with password prompt
-    adminToggle.onchange = () => {
-      if (adminToggle.checked) {
-        const p = prompt("Enter admin password:");
-        if (p === PASSWORD) {
-          isAdmin = true;
-          alert("Admin mode ON");
+    function displayPendingEvents() {
+      pendingList.innerHTML = "";
+      pendingHeader.style.display = pendingData.length ? "block" : "none";
+
+      const filtered = styleFilter.value
+        ? pendingData.filter(e => e.style === styleFilter.value)
+        : pendingData;
+
+      if (!filtered.length) {
+        if(pendingData.length) {
+          pendingList.innerHTML = "<p>No pending events match this filter.</p>";
         } else {
-          alert("Wrong password");
-          adminToggle.checked = false;
-          isAdmin = false;
+          pendingList.innerHTML = "";
         }
-      } else {
-        isAdmin = false;
+        return;
       }
-      showDeleteButtons(isAdmin);
-    };
 
-    // Handle event form submit: geocode location, add event to Firestore, reload events
-    form.onsubmit = async e => {
+      filtered.forEach(e => {
+        const div = document.createElement("div");
+        div.className = "event pending";
+        div.innerHTML = `
+          <button class="approve-btn" data-id="${e.id}">Approve</button>
+          <button class="delete-btn" data-id="${e.id}">Del</button>
+          <strong>${e.title}</strong><br/>
+          ${new Date(e.datetime).toLocaleString()}<br/>
+          ${e.style}<br/>
+          ${e.location}<br/>
+          ${e.description ? `<p>${e.description}</p>` : ""}
+        `;
+        pendingList.appendChild(div);
+      });
+
+      showDeleteButtons(true); // always show delete & approve in pending list
+
+      document.querySelectorAll("#pendingList .delete-btn").forEach(btn => {
+        btn.onclick = async () => {
+          if (confirm("Delete this pending event?")) {
+            await deleteDoc(doc(db, "pendingEvents", btn.dataset.id));
+            loadEvents();
+          }
+        };
+      });
+
+      document.querySelectorAll("#pendingList .approve-btn").forEach(btn => {
+        btn.onclick = async () => {
+          if (confirm("Approve this pending
+
+          if (confirm("Approve this pending event?")) {
+            const pendingDocRef = doc(db, "pendingEvents", btn.dataset.id);
+            const pendingDoc = await getDoc(pendingDocRef);
+            if (pendingDoc.exists()) {
+              const data = pendingDoc.data();
+              // Skopíruj event do kolekcie "events"
+              await setDoc(doc(db, "events", btn.dataset.id), data);
+              // Vymaž event z pending
+              await deleteDoc(pendingDocRef);
+              loadEvents();
+            } else {
+              alert("Pending event no longer exists.");
+              loadEvents();
+            }
+          }
+        };
+      });
+    }
+
+    form.onsubmit = async (e) => {
       e.preventDefault();
-
       const title = form.title.value.trim();
-      const dt = form.datetime.value;
+      const datetime = form.datetime.value;
       const style = form.style.value;
-      const loc = form.location.value.trim();
-      const desc = form.description.value.trim();
+      const location = form.location.value.trim();
+      const description = form.description.value.trim();
 
-      if (!title || !dt || !style || !loc) {
-        return alert("Please fill in all required fields.");
+      if (!title || !datetime || !style || !location) {
+        alert("Please fill all required fields.");
+        return;
       }
 
       try {
-        const coords = await geocode(loc);
+        const coords = await geocode(location);
         await addDoc(collection(db, "events"), {
           title,
-          datetime: dt,
+          datetime,
           style,
-          location: loc,
-          description: desc,
+          location,
+          description,
           lat: coords.lat,
-          lng: coords.lng
+          lng: coords.lng,
+          createdAt: new Date().toISOString()
         });
         form.reset();
-        await loadEvents();
+        loadEvents();
+        alert("Event added successfully!");
       } catch (err) {
-        alert("Error: " + err.message);
+        alert("Error adding event: " + err.message);
       }
     };
 
-    // When user changes style filter, redisplay events
-    styleFilter.onchange = displayEvents;
+    styleFilter.onchange = () => {
+      displayEvents();
+      if (isAdmin) displayPendingEvents();
+    };
 
-    // Load events initially
+    adminToggle.onchange = async () => {
+      if (adminToggle.checked) {
+        const pw = prompt("Enter admin password:");
+        if (pw === PASSWORD) {
+          isAdmin = true;
+          form.style.display = "block";
+          pendingHeader.style.display = "block";
+        } else {
+          alert("Wrong password!");
+          adminToggle.checked = false;
+          isAdmin = false;
+          form.style.display = "none";
+          pendingHeader.style.display = "none";
+        }
+      } else {
+        isAdmin = false;
+        form.style.display = "none";
+        pendingHeader.style.display = "none";
+      }
+      await loadEvents();
+    };
+
+    // Default - hide form
+    form.style.display = "none";
+
     loadEvents();
   </script>
+
 </body>
 </html>
