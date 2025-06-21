@@ -2,448 +2,279 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <title>Clifford – Music Events (Admin Mode)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Clifford Music Events</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body {
-      margin: 0; 
-      background: #121212; 
-      color: #eee; 
       font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    form, #filterContainer, #adminToggleContainer {
+      background: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      max-width: 600px;
+      margin: 0 auto 20px auto;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, select, textarea, button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+    button {
+      background: #27ae60;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #219150;
     }
     #map {
-      height: 60vh;
-      width: 100%;
+      height: 200px; /* Upravené z 400px na 200px */
+      max-width: 900px;
+      margin: 0 auto 20px auto;
+      border-radius: 8px;
     }
-    #controls {
-      padding: 10px;
-      background: #222;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
+    #eventList {
+      max-width: 600px;
+      margin: 20px auto;
     }
-    button, select, input[type="checkbox"] {
-      background: #333;
-      color: #eee;
-      border: none;
-      padding: 8px 12px;
-      cursor: pointer;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-    button:hover, select:hover {
-      background: #555;
-    }
-    #eventForm {
-      display: none;
-      background: #222;
-      padding: 15px;
-      margin: 10px;
-      border-radius: 6px;
-      max-width: 400px;
-    }
-    #eventForm input, #eventForm select, #eventForm textarea {
-      width: 100%;
+    .event {
+      background: #fff;
+      padding: 10px 10px 10px 15px;
       margin-bottom: 10px;
-      padding: 8px;
+      border-left: 5px solid #2980b9;
       border-radius: 4px;
+      position: relative;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .delete-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 50px;
+      height: 22px;
+      font-size: 10px;
+      background: #c0392b;
+      color: #fff;
       border: none;
-      font-size: 14px;
-      background: #333;
-      color: #eee;
-      resize: vertical;
+      border-radius: 3px;
+      cursor: pointer;
+      display: none;
+      z-index: 1;
     }
-    #eventList, #pendingList {
-      max-height: 200px;
-      overflow-y: auto;
-      margin: 10px;
-      background: #222;
-      border-radius: 6px;
-      padding: 10px;
+    .delete-btn:hover {
+      background: #a83228;
     }
-    .event-item {
-      padding: 6px;
-      border-bottom: 1px solid #444;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .event-item:last-child {
-      border-bottom: none;
-    }
-    .pending-event {
-      background: #444;
-      color: #ffd700;
-    }
-    .event-buttons button {
-      margin-left: 5px;
-      background: #555;
-      font-size: 12px;
-      padding: 4px 8px;
+    #adminToggleContainer {
+      text-align: center;
     }
   </style>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
 </head>
 <body>
 
-  <div id="controls">
-    <button id="createEventBtn">Create Event</button>
+  <h1>🎷 Clifford – Music Events</h1>
+
+  <form id="eventForm">
+    <label>Create Event Title: <input type="text" id="title" required /></label>
+    <label>Date & Time: <input type="datetime-local" id="datetime" required /></label>
+    <label>Music Style:
+      <select id="style" required>
+        <option value="">-- Choose --</option>
+        <option>Jazz</option><option>Rock</option><option>Classical</option>
+        <option>Electronic</option><option>Jam Session</option>
+        <option>Pop</option><option>Hip-hop</option><option>Folk</option>
+        <option>Metal</option><option>Blues</option><option>Other</option>
+      </select>
+    </label>
+    <label>Location: <input type="text" id="location" placeholder="e.g. Vienna, Austria" required /></label>
+    <label>Description: <textarea id="description"></textarea></label>
+    <button type="submit">Add Event</button>
+  </form>
+
+  <div id="filterContainer">
+    <label for="styleFilter">Find Event by Music Style:</label>
     <select id="styleFilter">
       <option value="">All Styles</option>
-      <option value="Jazz">Jazz</option>
-      <option value="Rock">Rock</option>
-      <option value="Classical">Classical</option>
-      <option value="Pop">Pop</option>
+      <option>Jazz</option><option>Rock</option><option>Classical</option>
+      <option>Electronic</option><option>Jam Session</option>
+      <option>Pop</option><option>Hip-hop</option><option>Folk</option>
+      <option>Metal</option><option>Blues</option><option>Other</option>
     </select>
-    <label><input type="checkbox" id="adminToggle" /> Admin Mode</label>
   </div>
-
-  <div id="eventForm">
-    <form id="form">
-      <input type="text" id="title" placeholder="Event Title" required />
-      <input type="datetime-local" id="datetime" required />
-      <select id="style" required>
-        <option value="">Select Style</option>
-        <option value="Jazz">Jazz</option>
-        <option value="Rock">Rock</option>
-        <option value="Classical">Classical</option>
-        <option value="Pop">Pop</option>
-      </select>
-      <input type="text" id="location" placeholder="Location" required />
-      <textarea id="description" placeholder="Description"></textarea>
-      <button type="submit">Add Event</button>
-    </form>
-  </div>
-
-  <h3>Events</h3>
-  <div id="eventList"></div>
-
-  <h3 id="pendingHeader" style="display:none; color:#ffd700;">Pending Events (Admin Only)</h3>
-  <div id="pendingList"></div>
 
   <div id="map"></div>
 
-<script>
-  // Firebase config — nahraď vlastnými údajmi
-  const firebaseConfig = {
-    apiKey: "YOUR_FIREBASE_API_KEY",
-    authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
-    projectId: "YOUR_FIREBASE_PROJECT_ID",
-    storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_FIREBASE_SENDER_ID",
-    appId: "YOUR_FIREBASE_APP_ID"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
+  <div id="eventList"></div>
 
-  let map;
-  let markers = [];
-  let isAdmin = false;
-  const PASSWORD = "2412";
+  <div id="adminToggleContainer">
+    <label><input type="checkbox" id="adminToggle" /> Admin Mode (password required)</label>
+  </div>
 
-  // Inicializácia mapy
-  function initMap() {
-    map = new google.maps.Map(document.getElementById("map"), {
-      center: { lat: 48.2082, lng: 16.3738 }, // napr. Viedeň
-      zoom: 8,
-      styles: [
-        { elementType: 'geometry', stylers: [{color: '#242f3e'}]},
-        { elementType: 'labels.text.stroke', stylers: [{color: '#242f3e'}]},
-        { elementType: 'labels.text.fill', stylers: [{color: '#746855'}]},
-        {
-          featureType: 'administrative.locality',
-          elementType: 'labels.text.fill',
-          stylers: [{color: '#d59563'}]
-        },
-        {
-          featureType: 'poi',
-          elementType: 'labels.text.fill',
-          stylers: [{color: '#d59563'}]
-        },
-        {
-          featureType: 'poi.park',
-          elementType: 'geometry',
-          stylers: [{color: '#263c3f'}]
-        },
-        {
-          featureType: 'road',
-          elementType: 'geometry',
-          stylers: [{color: '#38414e'}]
-        },
-        {
-          featureType: 'road',
-          elementType: 'geometry.stroke',
-          stylers: [{color: '#212a37'}]
-        },
-        {
-          featureType: 'road',
-          elementType: 'labels.text.fill',
-          stylers: [{color: '#9ca5b3'}]
-        },
-        {
-          featureType: 'transit',
-          elementType: 'geometry',
-          stylers: [{color: '#2f3948'}]
-        },
-        {
-          featureType: 'water',
-          elementType: 'geometry',
-          stylers: [{color: '#17263c'}]
-        }
-      ]
-    });
-  }
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore, collection, addDoc, getDocs,
+      deleteDoc, doc, orderBy, query
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-  // Vymazanie všetkých markerov z mapy
-  function clearMarkers() {
-    markers.forEach(m => m.setMap(null));
-    markers = [];
-  }
+    const firebaseConfig = {
+      apiKey: "AIzaSyBylr8Qgxzw263rInUmln4AYMpibm1t43o",
+      authDomain: "clifford-146ae.firebaseapp.com",
+      projectId: "clifford-146ae",
+      storageBucket: "clifford-146ae.appspot.com",
+      messagingSenderId: "655375890963",
+      appId: "1:655375890963:web:0153ed600a917c222c9de6"
+    };
 
-  // Pridanie markeru s popup oknom
-  function addMarker(event) {
-    if (!event.lat || !event.lng) return;
-    const marker = new google.maps.Marker({
-      position: { lat: event.lat, lng: event.lng },
-      map: map,
-      title: event.title
-    });
-    const infowindow = new google.maps.InfoWindow({
-      content: `<strong>${event.title}</strong><br/>
-                ${new Date(event.datetime).toLocaleString()}<br/>
-                Style: ${event.style}<br/>
-                Location: ${event.location}<br/>
-                ${event.description || ""}`
-    });
-    marker.addListener("click", () => {
-      infowindow.open(map, marker);
-    });
-    markers.push(marker);
-  }
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-  // Geokódovanie adresy na súradnice cez Google Maps Geocoder
-  function geocode(address) {
-    return new Promise((resolve, reject) => {
-      const geocoder = new google.maps.Geocoder();
-      geocoder.geocode({ address }, (results, status) => {
-        if (status === 'OK' && results[0]) {
-          const loc = results[0].geometry.location;
-          resolve({ lat: loc.lat(), lng: loc.lng() });
-        } else {
-          reject(new Error("Geocoding failed: " + status));
-        }
-      });
-    });
-  }
+    const form = document.getElementById("eventForm");
+    const styleFilter = document.getElementById("styleFilter");
+    const eventList = document.getElementById("eventList");
+    const adminToggle = document.getElementById("adminToggle");
 
-  // Zobraziť eventy podľa filtra
-  let allEvents = [];
-  async function loadEvents() {
-    clearMarkers();
-    allEvents = [];
-    const styleFilter = document.getElementById("styleFilter").value;
-    // Nacteme eventy z kolekcie "events"
-    const querySnapshot = await db.collection("events").get();
-    querySnapshot.forEach(doc => {
-      const data = doc.data();
-      data.id = doc.id;
-      allEvents.push(data);
-    });
-    displayEvents();
+    const PASSWORD = "2412";
+    let isAdmin = false;
+    let eventsData = [];
+    let markers = [];
 
-    if (isAdmin) {
-      await loadPendingEvents();
-    } else {
-      document.getElementById("pendingList").innerHTML = "";
-      document.getElementById("pendingHeader").style.display = "none";
+    const map = L.map("map").setView([48.2082, 16.3738], 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    async function geocode(loc) {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(loc)}`
+      );
+      const data = await resp.json();
+      if (!data.length) throw new Error("Location not found.");
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
     }
-  }
 
-  // Zobraziť schválené eventy na mape aj v zozname
-  function displayEvents() {
-    clearMarkers();
-    const styleFilter = document.getElementById("styleFilter").value;
-    const list = document.getElementById("eventList");
-    list.innerHTML = "";
-
-    const filtered = allEvents.filter(ev => {
-      if (!styleFilter) return true;
-      return ev.style === styleFilter;
-    });
-
-    filtered.forEach(ev => {
-      addMarker(ev);
-      const div = document.createElement("div");
-      div.className = "event-item";
-      div.innerHTML = `<div>
-        <strong>${ev.title}</strong> (${new Date(ev.datetime).toLocaleDateString()})<br/>
-        Style: ${ev.style}<br/>
-        Location: ${ev.location}
-      </div>
-      ${isAdmin ? `<div class="event-buttons">
-        <button class="deleteBtn" data-id="${ev.id}">Delete</button>
-      </div>` : ""}`;
-
-      list.appendChild(div);
-    });
-
-    if (isAdmin) {
-      // Pridáme event listener na mazanie
-      document.querySelectorAll(".deleteBtn").forEach(btn => {
-        btn.onclick = async () => {
-          if (confirm("Delete this event?")) {
-            await db.collection("events").doc(btn.dataset.id).delete();
-            loadEvents();
-          }
-        };
+    function showDeleteButtons(show) {
+      document.querySelectorAll(".delete-btn").forEach(btn => {
+        btn.style.display = show ? "inline-block" : "none";
       });
     }
-  }
 
-  // Načítanie pending eventov (admin režim)
-  async function loadPendingEvents() {
-    const pendingList = document.getElementById("pendingList");
-    pendingList.innerHTML = "";
-    document.getElementById("pendingHeader").style.display = "block";
+    async function loadEvents() {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+      eventList.innerHTML = "";
 
-    const snapshot = await db.collection("pendingEvents").get();
-    if (snapshot.empty) {
-      pendingList.innerHTML = "<i>No pending events</i>";
-      return;
+      const snap = await getDocs(query(collection(db, "events"), orderBy("datetime", "asc")));
+      eventsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      displayEvents();
     }
 
-    snapshot.forEach(doc => {
-      const ev = doc.data();
-      ev.id = doc.id;
-      const div = document.createElement("div");
-      div.className = "event-item pending-event";
-      div.innerHTML = `<div>
-        <strong>${ev.title}</strong> (${new Date(ev.datetime).toLocaleDateString()})<br/>
-        Style: ${ev.style}<br/>
-        Location: ${ev.location}
-      </div>
-      <div class="event-buttons">
-        <button class="approveBtn" data-id="${ev.id}">Approve</button>
-        <button class="deletePendingBtn" data-id="${ev.id}">Delete</button>
-      </div>`;
-      pendingList.appendChild(div);
-    });
+    function displayEvents() {
+      eventList.innerHTML = "";
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
 
-    document.querySelectorAll(".approveBtn").forEach(btn => {
-      btn.onclick = async () => {
-        if (confirm("Approve this pending event?")) {
-          const pendingDocRef = db.collection("pendingEvents").doc(btn.dataset.id);
-          const pendingDoc = await pendingDocRef.get();
-          if (pendingDoc.exists) {
-            const data = pendingDoc.data();
-            // Pridaj do "events"
-            await db.collection("events").doc(btn.dataset.id).set(data);
-            // Vymaz z pending
-            await pendingDocRef.delete();
-            loadEvents();
-          } else {
-            alert("Pending event no longer exists.");
-            loadEvents();
-          }
-        }
-      };
-    });
+      const filtered = styleFilter.value
+        ? eventsData.filter(e => e.style === styleFilter.value)
+        : eventsData;
 
-    document.querySelectorAll(".deletePendingBtn").forEach(btn => {
-      btn.onclick = async () => {
-        if (confirm("Delete this pending event?")) {
-          await db.collection("pendingEvents").doc(btn.dataset.id).delete();
-          loadEvents();
-        }
-      };
-    });
-  }
-
-  // Formulár na pridanie eventu
-  const createEventBtn = document.getElementById("createEventBtn");
-  const eventForm = document.getElementById("eventForm");
-  const form = document.getElementById("form");
-  const adminToggle = document.getElementById("adminToggle");
-  const styleFilter = document.getElementById("styleFilter");
-  const pendingHeader = document.getElementById("pendingHeader");
-
-  createEventBtn.onclick = () => {
-    if (!isAdmin) {
-      alert("You must be admin to add events.");
-      return;
-    }
-    eventForm.style.display = eventForm.style.display === "block" ? "none" : "block";
-  };
-
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    const title = document.getElementById("title").value.trim();
-    const datetime = document.getElementById("datetime").value;
-    const style = document.getElementById("style").value;
-    const location = document.getElementById("location").value.trim();
-    const description = document.getElementById("description").value.trim();
-
-    if (!title || !datetime || !style || !location) {
-      alert("Please fill all required fields.");
-      return;
-    }
-
-    try {
-      const coords = await geocode(location);
-      await db.collection("events").add({
-        title,
-        datetime,
-        style,
-        location,
-        description,
-        lat: coords.lat,
-        lng: coords.lng,
-        createdAt: new Date().toISOString()
-      });
-      form.reset();
-      eventForm.style.display = "none";
-      loadEvents();
-      alert("Event added successfully!");
-    } catch (err) {
-      alert("Error adding event: " + err.message);
-    }
-  };
-
-  styleFilter.onchange = () => {
-    displayEvents();
-  };
-
-  adminToggle.onchange = async () => {
-    if (adminToggle.checked) {
-      const pw = prompt("Enter admin password:");
-      if (pw === PASSWORD) {
-        isAdmin = true;
-        eventForm.style.display = "none";
-        pendingHeader.style.display = "block";
-      } else {
-        alert("Wrong password!");
-        adminToggle.checked = false;
-        isAdmin = false;
-        eventForm.style.display = "none";
-        pendingHeader.style.display = "none";
+      if (!filtered.length) {
+        eventList.innerHTML = "<p>No events found.</p>";
+        return;
       }
-    } else {
-      isAdmin = false;
-      eventForm.style.display = "none";
-      pendingHeader.style.display = "none";
+
+      filtered.forEach(e => {
+        const div = document.createElement("div");
+        div.className = "event";
+        div.innerHTML = `
+          <button class="delete-btn" data-id="${e.id}">Del</button>
+          <strong>${e.title}</strong><br/>
+          ${new Date(e.datetime).toLocaleString()}<br/>
+          ${e.style}<br/>
+          ${e.location}<br/>
+          ${e.description ? `<p>${e.description}</p>` : ""}
+        `;
+        eventList.appendChild(div);
+
+        const m = L.marker([e.lat, e.lng])
+          .addTo(map)
+          .bindPopup(`<strong>${e.title}</strong><br/>${e.location}`);
+        markers.push(m);
+      });
+
+      showDeleteButtons(isAdmin);
+
+      if (isAdmin) {
+        document.querySelectorAll(".delete-btn").forEach(btn => {
+          btn.onclick = async () => {
+            if (confirm("Delete this event?")) {
+              await deleteDoc(doc(db, "events", btn.dataset.id));
+              loadEvents();
+            }
+          };
+        });
+      }
     }
-    await loadEvents();
-  };
 
-  window.onload = () => {
-    initMap();
+    adminToggle.onchange = () => {
+      if (adminToggle.checked) {
+        const p = prompt("Enter admin password:");
+        if (p === PASSWORD) {
+          isAdmin = true;
+          alert("Admin mode ON");
+        } else {
+          alert("Wrong password");
+          adminToggle.checked = false;
+          isAdmin = false;
+        }
+      } else {
+        isAdmin = false;
+      }
+      showDeleteButtons(isAdmin);
+    };
+
+    form.onsubmit = async e => {
+      e.preventDefault();
+      const title = form.title.value.trim();
+      const dt = form.datetime.value;
+      const style = form.style.value;
+      const loc = form.location.value.trim();
+      const desc = form.description.value.trim();
+      if (!title || !dt || !style || !loc) {
+        return alert("Please fill in all required fields.");
+      }
+
+      try {
+        const coords = await geocode(loc);
+        await addDoc(collection(db, "events"), {
+          title, datetime: dt, style, location: loc,
+          description: desc, lat: coords.lat, lng: coords.lng
+        });
+        form.reset();
+        loadEvents();
+      } catch (err) {
+        alert("Error: " + err.message);
+      }
+    };
+
+    styleFilter.onchange = displayEvents;
     loadEvents();
-  };
-</script>
-
+  </script>
 </body>
 </html>
